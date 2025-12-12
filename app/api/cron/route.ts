@@ -40,18 +40,7 @@ async function deactivateSchedulesSupabase(now: Date) {
   }
   const schedules: Array<{ id: string; productId: string; departure_time: string; isActive: boolean }> = await schedRes.json();
 
-  const productIds = Array.from(new Set(schedules.map((s) => s.productId).filter(Boolean)));
-  const invUrl = `${supabaseUrl}/rest/v1/inventory?select=${encodeURIComponent('productId,inventoryDate')}&inventoryDate=eq.${encodeURIComponent(dateStr)}&productId=in.(${productIds.join(',')})`;
-  const invRes = await fetch(invUrl, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }, cache: 'no-store' });
-  if (!invRes.ok) {
-    const text = await invRes.text();
-    return { changedCount: 0, changedIds: [], error: `Failed to fetch inventory: ${text}` };
-  }
-  const invRows: Array<{ productId: string; inventoryDate: string }> = await invRes.json();
-  const invSet = new Set(invRows.map((r) => r.productId).filter(Boolean));
-
   const toDeactivate = schedules.filter((s) => {
-    if (!invSet.has(s.productId)) return false;
     const departAt = parseHHMM(dateStr, s.departure_time);
     if (!departAt) return false;
     const diffMs = departAt.getTime() - now.getTime();

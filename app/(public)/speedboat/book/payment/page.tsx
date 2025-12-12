@@ -88,6 +88,8 @@ export default function PaymentPage() {
       customer_email: b?.customer_email ?? b?.customerEmail ?? '',
       customer_phone: b?.customer_phone ?? b?.customerPhone ?? '',
       booking_date: b?.booking_date ?? b?.bookingDate ?? null,
+      created_at: b?.created_at ?? (b?.createdAt ? new Date(b.createdAt).toISOString() : null),
+      createdAt: b?.createdAt ?? (b?.created_at ? new Date(b.created_at) : null),
       total_amount: Number(b?.total_amount ?? b?.totalAmount ?? 0),
       customer_notes: b?.customer_notes ?? b?.customerNotes ?? '',
       booking_items,

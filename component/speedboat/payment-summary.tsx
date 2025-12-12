@@ -54,7 +54,7 @@ export function PaymentSummary({
       setTimeLeft(null);
       return;
     }
-    const raw = booking?.booking_date ?? booking?.bookingDate ?? null;
+    const raw = booking?.created_at ?? booking?.createdAt ?? booking?.booking_date ?? booking?.bookingDate ?? null;
     if (!raw) return;
     const bd = new Date(raw);
     const deadline = bd.getTime() + 15 * 60 * 1000;

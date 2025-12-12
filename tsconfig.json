@@ -41,9 +41,11 @@
   ],
   "exclude": [
     "node_modules",
-    "app/(public)/speedboat/**/*",
+    ".next/**",
+    "app/(public)/speedboat/actions.ts",
+    "app/(public)/speedboat/book/actions.ts",
     "app/(auth)/**/*",
-    "app/profile_backup/**/*",
+    "../task/profile_backup/**/*",
     "services/**/*",
     "lib/**/*",
     "prisma/**/*"

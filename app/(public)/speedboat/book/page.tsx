@@ -88,7 +88,7 @@ function BookingPageContent() {
           const dm = toMinutes(dep);
           const am = toMinutes(arr);
           const duration = dm != null && am != null && am >= dm ? `${am - dm} min` : undefined;
-          setBoat({ name: s?.boat?.name ?? undefined, capacity: s?.boat?.capacity ?? undefined, duration });
+          setBoat({ name: s?.boat?.name ?? undefined, code: s?.boat?.registration_number ?? undefined, capacity: s?.boat?.capacity ?? undefined, duration });
           setVendorName(s?.product?.tenant?.vendor_name ?? '');
           setCategoryName(s?.product?.category?.name ?? '');
           const inv = s?.inventory;
@@ -100,6 +100,14 @@ function BookingPageContent() {
             setAvailableUnits(au);
             const cap = typeof inv.totalCapacity === 'number' ? inv.totalCapacity : undefined;
             setCapacityInbound(cap);
+          } else {
+            const scheduleCap = typeof s?.capacity === 'number' ? Number(s.capacity) : (typeof s?.boat?.capacity === 'number' ? Number(s.boat.capacity) : undefined);
+            setCapacityInbound(scheduleCap);
+            const scheduleAvail = scheduleCap;
+            if (typeof scheduleAvail === 'number') {
+              setAvailableUnitsInbound(scheduleAvail);
+              setAvailableUnits(scheduleAvail);
+            }
           }
         }
       })
@@ -128,7 +136,7 @@ function BookingPageContent() {
           const dm = toMinutes(dep);
           const am = toMinutes(arr);
           const duration = dm != null && am != null && am >= dm ? `${am - dm} min` : undefined;
-          setBoat2({ name: s?.boat?.name ?? undefined, capacity: s?.boat?.capacity ?? undefined, duration });
+          setBoat2({ name: s?.boat?.name ?? undefined, code: s?.boat?.registration_number ?? undefined, capacity: s?.boat?.capacity ?? undefined, duration });
           setVendorName2(s?.product?.tenant?.vendor_name ?? '');
           const inv = s?.inventory;
           if (inv) {
@@ -139,6 +147,14 @@ function BookingPageContent() {
             const cap = typeof inv.totalCapacity === 'number' ? inv.totalCapacity : undefined;
             setCapacityOutbound(cap);
             setInventoryDate2(String(inv.inventoryDate || ''));
+          } else {
+            const scheduleCap = typeof s?.capacity === 'number' ? Number(s.capacity) : (typeof s?.boat?.capacity === 'number' ? Number(s.boat.capacity) : undefined);
+            setCapacityOutbound(scheduleCap);
+            const scheduleAvail = scheduleCap;
+            if (typeof scheduleAvail === 'number') {
+              setAvailableUnitsOutbound(scheduleAvail);
+              setAvailableUnits((prev) => (typeof prev === 'number' && typeof scheduleAvail === 'number') ? Math.min(prev, scheduleAvail) : (prev ?? scheduleAvail));
+            }
           }
         }
       })
@@ -245,6 +261,11 @@ function BookingPageContent() {
                   specialRequests: baseNotes,
                   fullName: `${String(contact.firstName || '').trim()} ${String(contact.lastName || '').trim()}`.trim(),
                 };
+                const factorFor = (age: string) => {
+                  const a = String(age || '').toLowerCase();
+                  return (a === 'child' || a === 'infant') ? 0.75 : 1;
+                };
+                const segTotal = (price: number) => passengers.reduce((sum, p) => sum + Math.round(price * factorFor(p?.ageCategory)), 0);
                 const payloadOutbound = scheduleIdOutbound ? {
                   scheduleId: scheduleIdOutbound,
                   origin: origin2 || destination,
@@ -254,6 +275,7 @@ function BookingPageContent() {
                   guestCount,
                   priceIdr: priceIdr2 || priceIdr,
                   portFee: 10000,
+                  totalAmount: segTotal(priceIdr2 || priceIdr) + 10000,
                   contact: contactOutbound,
                   passengers,
                   currency: 'IDR',
@@ -261,6 +283,7 @@ function BookingPageContent() {
                   ownerEmail,
                   inventoryId: inventoryIdOutbound,
                 } : null;
+                const inboundPortFee = scheduleIdOutbound ? 0 : 10000;
                 const payloadInbound = scheduleIdInbound ? {
                   scheduleId: scheduleIdInbound,
                   origin,
@@ -269,7 +292,8 @@ function BookingPageContent() {
                   departureDate,
                   guestCount,
                   priceIdr,
-                  portFee: 0,
+                  portFee: inboundPortFee,
+                  totalAmount: segTotal(priceIdr) + inboundPortFee,
                   contact: contactInbound,
                   passengers,
                   currency: 'IDR',

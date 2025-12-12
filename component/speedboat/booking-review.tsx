@@ -25,10 +25,10 @@ export function BookingReview({
     : '';
   const departureTime = firstItem?.schedule?.departure_time || '';
   const arrivalTime = firstItem?.schedule?.arrival_time || '';
-  const inventoryDateRaw = (firstItem as any)?.inventory?.inventoryDate || '';
-  const inventoryDateStr = (() => {
-    if (!inventoryDateRaw) return '';
-    const d = new Date(inventoryDateRaw);
+  const departureDateRaw = (booking?.booking_date || booking?.bookingDate || firstItem?.item_date || (firstItem as any)?.inventory?.inventoryDate || '') as string;
+  const departureDateStr = (() => {
+    if (!departureDateRaw) return '';
+    const d = new Date(departureDateRaw);
     return d.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   })();
   function toMinutes(t?: string) {
@@ -85,10 +85,10 @@ export function BookingReview({
                 <Text c="dark">Trip: {trip}</Text>
               </Group>
             )}
-            {inventoryDateStr && (
+            {departureDateStr && (
               <Group align="center" gap="md">
                 <IconCalendar size={20} color="#6b7280" />
-                <Text c="dark">Departure Date: {inventoryDateStr}</Text>
+                <Text c="dark">Departure Date: {departureDateStr}</Text>
               </Group>
             )}
             {departureTime && (

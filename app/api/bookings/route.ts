@@ -6,10 +6,7 @@ const prisma = db;
 export async function POST(request: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceKey) {
-    return NextResponse.json({ error: 'Missing Supabase configuration' }, { status: 500 });
-  }
+  const useSupabase = !!(supabaseUrl && serviceKey);
 
   try {
     const body = await request.json();
@@ -98,6 +95,7 @@ export async function POST(request: Request) {
     const guestCount = Number(body?.guestCount || 1);
     const priceIdr = Number(body?.priceIdr || 0);
     const portFee = Number(body?.portFee || 0);
+    const totalAmountFromClient = Number(body?.totalAmount || 0);
     const contact = body?.contact || {};
     const passengers = Array.isArray(body?.passengers) ? body.passengers : [];
     const ownerId = String(body?.ownerId || '');
@@ -111,22 +109,33 @@ export async function POST(request: Request) {
       'product:products!fastboat_schedules_productId_fkey(id,tenantId,price_idr)'
     ].join(',');
 
-    const scheduleRes = await fetch(`${supabaseUrl}/rest/v1/fastboat_schedules?select=${encodeURIComponent(scheduleSelect)}&id=eq.${encodeURIComponent(scheduleId)}`, {
-      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-      cache: 'no-store',
-    });
-    if (!scheduleRes.ok) {
-      const text = await scheduleRes.text();
-      return NextResponse.json({ error: 'Failed to fetch schedule', detail: text }, { status: 500 });
+    let productId: string = '';
+    let tenantId: string = '';
+    if (useSupabase) {
+      const scheduleRes = await fetch(`${supabaseUrl}/rest/v1/fastboat_schedules?select=${encodeURIComponent(scheduleSelect)}&id=eq.${encodeURIComponent(scheduleId)}`, {
+        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+        cache: 'no-store',
+      });
+      if (scheduleRes.ok) {
+        const scheduleData = await scheduleRes.json();
+        const schedule = Array.isArray(scheduleData) && scheduleData.length > 0 ? scheduleData[0] : null;
+        if (schedule) {
+          productId = String(schedule.productId || schedule.product?.id || '');
+          tenantId = String(schedule.product?.tenantId || '');
+        }
+      }
     }
-    const scheduleData = await scheduleRes.json();
-    const schedule = Array.isArray(scheduleData) && scheduleData.length > 0 ? scheduleData[0] : null;
-    if (!schedule) {
-      return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
+    if (!productId || !tenantId) {
+      const fs = await prisma.fastboatSchedule.findUnique({
+        where: { id: scheduleId },
+        include: { product: true },
+      });
+      if (!fs) {
+        return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
+      }
+      productId = String(fs.productId || fs.product?.id || '');
+      tenantId = String(fs.product?.tenantId || '');
     }
-
-    const productId: string = schedule.productId || schedule.product?.id;
-    const tenantId: string = schedule.product?.tenantId;
 
     let inventoryId: string | null = inventoryIdFromClient || null;
 
@@ -137,35 +146,52 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Login required' }, { status: 401 });
     }
 
-    const checkUserRes = await fetch(`${supabaseUrl}/rest/v1/users?select=id&id=eq.${encodeURIComponent(ownerId)}&limit=1`, {
-      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-      cache: 'no-store',
-    });
-    if (!checkUserRes.ok) {
-      const text = await checkUserRes.text();
-      return NextResponse.json({ error: 'Failed to verify user', detail: text }, { status: 500 });
-    }
-    const checkUserData = await checkUserRes.json();
-    const hasUserRecord = Array.isArray(checkUserData) && checkUserData.length > 0;
     let customerId: string = ownerId;
-    if (!hasUserRecord) {
-      if (!ownerEmail) {
-        return NextResponse.json({ error: 'User not found', detail: 'Please login with a registered account' }, { status: 400 });
-      }
-      const byEmailRes = await fetch(`${supabaseUrl}/rest/v1/users?select=id&email=eq.${encodeURIComponent(ownerEmail)}&limit=1`, {
+    if (useSupabase) {
+      const checkUserRes = await fetch(`${supabaseUrl}/rest/v1/users?select=id&id=eq.${encodeURIComponent(ownerId)}&limit=1`, {
         headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
         cache: 'no-store',
       });
-      if (!byEmailRes.ok) {
-        const text = await byEmailRes.text();
-        return NextResponse.json({ error: 'Failed to verify user by email', detail: text }, { status: 500 });
+      let hasUserRecord = false;
+      if (checkUserRes.ok) {
+        const checkUserData = await checkUserRes.json();
+        hasUserRecord = Array.isArray(checkUserData) && checkUserData.length > 0;
       }
-      const byEmailData = await byEmailRes.json();
-      const foundByEmail = Array.isArray(byEmailData) && byEmailData.length > 0 ? String(byEmailData[0].id || '') : '';
-      if (!foundByEmail) {
-        return NextResponse.json({ error: 'User not found', detail: 'Please login with a registered account' }, { status: 400 });
+      if (!hasUserRecord) {
+        if (!ownerEmail) {
+          return NextResponse.json({ error: 'User not found', detail: 'Please login with a registered account' }, { status: 400 });
+        }
+        const byEmailRes = await fetch(`${supabaseUrl}/rest/v1/users?select=id&email=eq.${encodeURIComponent(ownerEmail)}&limit=1`, {
+          headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+          cache: 'no-store',
+        });
+        if (byEmailRes.ok) {
+          const byEmailData = await byEmailRes.json();
+          const foundByEmail = Array.isArray(byEmailData) && byEmailData.length > 0 ? String(byEmailData[0].id || '') : '';
+          if (!foundByEmail) {
+            return NextResponse.json({ error: 'User not found', detail: 'Please login with a registered account' }, { status: 400 });
+          }
+          customerId = foundByEmail;
+        } else {
+          const byEmail = await prisma.user.findFirst({ where: { email: ownerEmail } });
+          if (!byEmail) {
+            return NextResponse.json({ error: 'User not found', detail: 'Please login with a registered account' }, { status: 400 });
+          }
+          customerId = String(byEmail.id || '');
+        }
       }
-      customerId = foundByEmail;
+    } else {
+      const u = await prisma.user.findFirst({ where: { id: ownerId } });
+      if (!u) {
+        if (!ownerEmail) {
+          return NextResponse.json({ error: 'User not found', detail: 'Please login with a registered account' }, { status: 400 });
+        }
+        const byEmail = await prisma.user.findFirst({ where: { email: ownerEmail } });
+        if (!byEmail) {
+          return NextResponse.json({ error: 'User not found', detail: 'Please login with a registered account' }, { status: 400 });
+        }
+        customerId = String(byEmail.id || '');
+      }
     }
 
     const bookingId = crypto.randomUUID();
@@ -182,7 +208,7 @@ export async function POST(request: Request) {
       inventoryId: inventoryId || null,
       unit_price: unitPriceFor(p?.ageCategory),
       quantity: 1,
-      item_date: nowIso,
+      item_date: departureDate || nowIso,
       subtotal: unitPriceFor(p?.ageCategory),
       participant_name: `${String(p.firstName || '').trim()} ${String(p.lastName || '').trim()}`.trim() || null,
       participant_email: null,
@@ -199,44 +225,14 @@ export async function POST(request: Request) {
       }),
     }));
     const passengerTotal = itemsPayload.reduce((acc: number, it: any) => acc + Number(it.subtotal || 0), 0);
-    const totalAmount = passengerTotal + portFee;
+    const totalAmount = (Number.isFinite(totalAmountFromClient) && totalAmountFromClient > 0) ? totalAmountFromClient : (passengerTotal + portFee);
 
     const phoneCombined = `${String(contact?.countryCode || '')} ${String(contact?.phone || '')}`.trim();
     const notes = String(contact?.specialRequests || '');
 
-    const createBookingRes = await fetch(`${supabaseUrl}/rest/v1/bookings`, {
-      method: 'POST',
-      headers: {
-        apikey: serviceKey,
-        Authorization: `Bearer ${serviceKey}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-      },
-      body: JSON.stringify({
-        id: bookingId,
-        tenantId,
-        customerId,
-        booking_code: bookingCode,
-        currency: 'IDR',
-        total_amount: totalAmount,
-        status: 'PENDING',
-        customer_name: userFullName,
-        customer_email: userEmail,
-        customer_phone: phoneCombined || null,
-        customer_notes: notes || null,
-        updatedAt: new Date().toISOString(),
-      }),
-    });
-    if (!createBookingRes.ok) {
-      const text = await createBookingRes.text();
-      return NextResponse.json({ error: 'Failed to create booking', detail: text }, { status: 500 });
-    }
-    const createdBookings = await createBookingRes.json();
-    const booking = createdBookings?.[0];
-
-    let items: any[] = [];
-    if (itemsPayload.length > 0) {
-      const createItemsRes = await fetch(`${supabaseUrl}/rest/v1/booking_items`, {
+    let booking: any = null;
+    if (useSupabase) {
+      const createBookingRes = await fetch(`${supabaseUrl}/rest/v1/bookings`, {
         method: 'POST',
         headers: {
           apikey: serviceKey,
@@ -244,59 +240,142 @@ export async function POST(request: Request) {
           'Content-Type': 'application/json',
           Prefer: 'return=representation',
         },
-        body: JSON.stringify(itemsPayload),
+        body: JSON.stringify({
+          id: bookingId,
+          tenantId,
+          customerId,
+          booking_code: bookingCode,
+          currency: 'IDR',
+          total_amount: totalAmount,
+          status: 'PENDING',
+          booking_date: departureDate || nowIso,
+          customer_name: userFullName,
+          customer_email: userEmail,
+          customer_phone: phoneCombined || null,
+          customer_notes: notes || null,
+          updatedAt: new Date().toISOString(),
+        }),
       });
-      if (!createItemsRes.ok) {
-        const text = await createItemsRes.text();
-        return NextResponse.json({ error: 'Failed to create booking items', detail: text }, { status: 500 });
+      if (createBookingRes.ok) {
+        const createdBookings = await createBookingRes.json();
+        booking = createdBookings?.[0];
+      } else {
+        booking = await prisma.booking.create({
+          data: {
+            id: bookingId,
+            tenantId,
+            customerId,
+            bookingCode,
+            currency: 'IDR',
+            totalAmount: String(totalAmount),
+            status: 'PENDING',
+            bookingDate: departureDate ? new Date(departureDate) : new Date(nowIso),
+            customerName: userFullName,
+            customerEmail: userEmail,
+            customerPhone: phoneCombined || null,
+            customerNotes: notes || null,
+          },
+        });
       }
-      items = await createItemsRes.json();
+    } else {
+      booking = await prisma.booking.create({
+        data: {
+          id: bookingId,
+          tenantId,
+          customerId,
+          bookingCode,
+          currency: 'IDR',
+          totalAmount: String(totalAmount),
+          status: 'PENDING',
+          bookingDate: departureDate ? new Date(departureDate) : new Date(nowIso),
+          customerName: userFullName,
+          customerEmail: userEmail,
+          customerPhone: phoneCombined || null,
+          customerNotes: notes || null,
+        },
+      });
+    }
+
+    let items: any[] = [];
+    if (itemsPayload.length > 0) {
+      if (useSupabase) {
+        const createItemsRes = await fetch(`${supabaseUrl}/rest/v1/booking_items`, {
+          method: 'POST',
+          headers: {
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=representation',
+          },
+          body: JSON.stringify(itemsPayload),
+        });
+        if (createItemsRes.ok) {
+          items = await createItemsRes.json();
+        } else {
+          for (const it of itemsPayload) {
+            const created = await prisma.bookingItem.create({
+              data: {
+                id: it.id,
+                bookingId: it.bookingId,
+                productId: it.productId,
+                inventoryId: it.inventoryId || null,
+                unitPrice: String(it.unit_price || 0),
+                quantity: Number(it.quantity || 0),
+                itemDate: it.item_date ? new Date(it.item_date) : new Date(nowIso),
+                subtotal: String(it.subtotal || 0),
+                participantName: it.participant_name || null,
+                participantEmail: it.participant_email || null,
+                participantPhone: it.participant_phone || null,
+                specialRequirements: it.special_requirements || null,
+              },
+            });
+            items.push(created);
+          }
+        }
+      } else {
+        for (const it of itemsPayload) {
+          const created = await prisma.bookingItem.create({
+            data: {
+              id: it.id,
+              bookingId: it.bookingId,
+              productId: it.productId,
+              inventoryId: it.inventoryId || null,
+              unitPrice: String(it.unit_price || 0),
+              quantity: Number(it.quantity || 0),
+              itemDate: it.item_date ? new Date(it.item_date) : new Date(nowIso),
+              subtotal: String(it.subtotal || 0),
+              participantName: it.participant_name || null,
+              participantEmail: it.participant_email || null,
+              participantPhone: it.participant_phone || null,
+              specialRequirements: it.special_requirements || null,
+            },
+          });
+          items.push(created);
+        }
+      }
     }
 
     if (!inventoryId && productId && departureDate) {
-      const invSelect = ['id','productId','inventoryDate','availableUnits','bookedUnits'].join(',');
-      const invRes = await fetch(`${supabaseUrl}/rest/v1/inventory?select=${encodeURIComponent(invSelect)}&productId=eq.${encodeURIComponent(productId)}&inventoryDate=eq.${encodeURIComponent(departureDate)}&is_available=eq.true&limit=1`, {
-        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-        cache: 'no-store',
-      });
-      if (invRes.ok) {
-        const invData = await invRes.json();
-        const inv = Array.isArray(invData) && invData.length > 0 ? invData[0] : null;
-        if (inv) {
-          inventoryId = String(inv.id || '');
+      if (useSupabase) {
+        const invSelect = ['id','productId','inventoryDate','availableUnits','bookedUnits'].join(',');
+        const invRes = await fetch(`${supabaseUrl}/rest/v1/inventory?select=${encodeURIComponent(invSelect)}&productId=eq.${encodeURIComponent(productId)}&inventoryDate=eq.${encodeURIComponent(departureDate)}&is_available=eq.true&limit=1`, {
+          headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+          cache: 'no-store',
+        });
+        if (invRes.ok) {
+          const invData = await invRes.json();
+          const inv = Array.isArray(invData) && invData.length > 0 ? invData[0] : null;
+          if (inv) {
+            inventoryId = String(inv.id || '');
+          }
         }
+      } else {
+        const inv = await prisma.inventory.findFirst({ where: { productId, inventoryDate: new Date(`${departureDate}T00:00:00.000Z`), isAvailable: true } });
+        if (inv) inventoryId = String(inv.id || '');
       }
     }
 
-    if (inventoryId && itemsPayload.length > 0) {
-      const qty = itemsPayload.length;
-      const invGetRes = await fetch(`${supabaseUrl}/rest/v1/inventory?select=${encodeURIComponent('id,availableUnits,bookedUnits')}&id=eq.${encodeURIComponent(inventoryId)}`, {
-        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-        cache: 'no-store',
-      });
-      if (invGetRes.ok) {
-        const invArr = await invGetRes.json();
-        const inv = Array.isArray(invArr) && invArr.length > 0 ? invArr[0] : null;
-        if (inv) {
-          const newAvailable = Math.max(0, Number(inv.availableUnits || 0) - qty);
-          const newBooked = Number(inv.bookedUnits || 0) + qty;
-          const updateRes = await fetch(`${supabaseUrl}/rest/v1/inventory?id=eq.${encodeURIComponent(inventoryId)}`, {
-            method: 'PATCH',
-            headers: {
-              apikey: serviceKey,
-              Authorization: `Bearer ${serviceKey}`,
-              'Content-Type': 'application/json',
-              Prefer: 'return=representation',
-            },
-            body: JSON.stringify({ availableUnits: newAvailable, bookedUnits: newBooked, updatedAt: new Date().toISOString() }),
-          });
-          if (!updateRes.ok) {
-            const text = await updateRes.text();
-            return NextResponse.json({ error: 'Failed to update inventory', detail: text }, { status: 500 });
-          }
-        }
-      }
-    }
+    
 
     return NextResponse.json({ booking, items });
   } catch (e: any) {
@@ -321,16 +400,180 @@ export async function PUT(request: Request) {
     }
 
     if (action === 'pay') {
-      const updated = await prisma.booking.update({
-        where,
-        data: {
-          status: 'PAID',
-          paymentMethod: paymentMethod || 'unknown',
-          paidAmount: paidAmount !== undefined ? (typeof paidAmount === 'string' ? paidAmount : String(paidAmount)) : undefined,
-          paidAt: new Date(),
-        },
+      const result = await prisma.$transaction(async (tx) => {
+        const updated = await tx.booking.update({
+          where,
+          data: {
+            status: 'PAID',
+            paymentMethod: paymentMethod || 'unknown',
+            paidAmount: paidAmount !== undefined ? (typeof paidAmount === 'string' ? paidAmount : String(paidAmount)) : undefined,
+            paidAt: new Date(),
+          },
+        });
+
+        const b = await tx.booking.findUnique({
+          where: { id: updated.id },
+          include: {
+            items: {
+              include: {
+                product: { include: { fastboatSchedule: true } },
+              },
+            },
+          },
+        });
+        if (!b) return { booking: updated };
+
+        const groupMap = new Map<string, { productId: string; tenantId: string; qty: number; capacity: number; dateStr: string }>();
+        for (const it of b.items) {
+          const productId = String(it.productId || '');
+          if (!productId) continue;
+          const d = it.itemDate ? new Date(it.itemDate as any) : null;
+          const dateStr = d ? d.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+          const tenantId = (it.product as any)?.tenantId || b.tenantId;
+          const capacity = Number((it.product as any)?.fastboatSchedule?.capacity ?? 0);
+          const key = `${productId}:${dateStr}`;
+          const prev = groupMap.get(key);
+          const qty = Number(it.quantity || 0) || 0;
+          if (prev) {
+            prev.qty += qty;
+          } else {
+            groupMap.set(key, { productId, tenantId, qty, capacity, dateStr });
+          }
+        }
+
+        for (const [, g] of groupMap) {
+          const ledgerDate = new Date(`${g.dateStr}T00:00:00.000Z`);
+          let inv = await tx.inventory.findFirst({ where: { productId: g.productId, inventoryDate: ledgerDate } });
+          if (inv) {
+            const newAvail = Math.max(0, (inv.availableUnits || 0) - g.qty);
+            const newBooked = (inv.bookedUnits || 0) + g.qty;
+            inv = await tx.inventory.update({ where: { id: inv.id }, data: { availableUnits: newAvail, bookedUnits: newBooked, updatedAt: new Date() } });
+          } else {
+            const cap = Number(g.capacity || 0);
+            const totalCap = cap > 0 ? cap : g.qty;
+            const availableUnits = Math.max(0, totalCap - g.qty);
+            inv = await tx.inventory.create({
+              data: {
+                tenantId: g.tenantId,
+                productId: g.productId,
+                inventoryDate: ledgerDate,
+                totalCapacity: totalCap,
+                bookedUnits: g.qty,
+                availableUnits,
+                isAvailable: true,
+              },
+            });
+          }
+          await tx.bookingItem.updateMany({
+            where: {
+              bookingId: b.id,
+              productId: g.productId,
+              itemDate: {
+                gte: new Date(`${g.dateStr}T00:00:00.000Z`),
+                lt: new Date(`${g.dateStr}T23:59:59.999Z`),
+              },
+            },
+            data: { inventoryId: inv.id },
+          });
+          await tx.product.update({ where: { id: g.productId }, data: { totalBookings: inv.bookedUnits } });
+        }
+
+        return { booking: updated };
       });
-      return NextResponse.json({ booking: updated });
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (supabaseUrl && serviceKey) {
+          const b = await prisma.booking.findUnique({
+            where,
+            include: {
+              items: {
+                include: { product: { include: { fastboatSchedule: true } } },
+              },
+            },
+          });
+          if (b) {
+            const groupMap = new Map<string, { productId: string; tenantId: string; qty: number; capacity: number; dateStr: string }>();
+            for (const it of b.items) {
+              const pid = String(it.productId || '');
+              if (!pid) continue;
+              const d = it.itemDate ? new Date(it.itemDate as any) : null;
+              const dateStr = d ? d.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+              const tenantId = (it.product as any)?.tenantId || b.tenantId;
+              const capacity = Number((it.product as any)?.fastboatSchedule?.capacity ?? 0);
+              const key = `${pid}:${dateStr}`;
+              const qty = Number(it.quantity || 0) || 0;
+              const prev = groupMap.get(key);
+              if (prev) prev.qty += qty; else groupMap.set(key, { productId: pid, tenantId, qty, capacity, dateStr });
+            }
+            for (const [, g] of groupMap) {
+              const invSel = ['id','productId','inventoryDate','totalCapacity','bookedUnits','availableUnits'].join(',');
+              const getUrl = `${supabaseUrl}/rest/v1/inventory?select=${encodeURIComponent(invSel)}&productId=eq.${encodeURIComponent(g.productId)}&inventoryDate=eq.${encodeURIComponent(g.dateStr)}&limit=1`;
+              const getRes = await fetch(getUrl, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }, cache: 'no-store' });
+              let invId: string | null = null;
+              let bookedUnits = 0;
+              let availableUnits = 0;
+              if (getRes.ok) {
+                const arr = await getRes.json();
+                const row = Array.isArray(arr) && arr.length ? arr[0] : null;
+                if (row) {
+                  invId = String(row.id || '');
+                  const newAvail = Math.max(0, Number(row.availableUnits || 0) - g.qty);
+                  const newBooked = Number(row.bookedUnits || 0) + g.qty;
+                  const patchUrl = `${supabaseUrl}/rest/v1/inventory?id=eq.${encodeURIComponent(invId)}`;
+                  const patchRes = await fetch(patchUrl, {
+                    method: 'PATCH',
+                    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+                    body: JSON.stringify({ availableUnits: newAvail, bookedUnits: newBooked }),
+                  });
+                  if (patchRes.ok) {
+                    const patched = await patchRes.json();
+                    const pr = Array.isArray(patched) && patched.length ? patched[0] : null;
+                    bookedUnits = Number(pr?.bookedUnits || newBooked);
+                    availableUnits = Number(pr?.availableUnits || newAvail);
+                  } else {
+                    bookedUnits = newBooked;
+                    availableUnits = newAvail;
+                  }
+                }
+              }
+              if (!invId) {
+                let cap = Number(g.capacity || 0);
+                if (!cap) {
+                  const capRes = await fetch(`${supabaseUrl}/rest/v1/fastboat_schedules?select=${encodeURIComponent('capacity')}&productId=eq.${encodeURIComponent(g.productId)}&limit=1`, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }, cache: 'no-store' });
+                  if (capRes.ok) {
+                    const capArr = await capRes.json();
+                    const capRow = Array.isArray(capArr) && capArr.length ? capArr[0] : null;
+                    cap = Number(capRow?.capacity || 0) || g.qty;
+                  } else {
+                    cap = g.qty;
+                  }
+                }
+                const avail = Math.max(0, cap - g.qty);
+                const postRes = await fetch(`${supabaseUrl}/rest/v1/inventory`, {
+                  method: 'POST',
+                  headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+                  body: JSON.stringify({ tenantId: g.tenantId, productId: g.productId, inventoryDate: g.dateStr, totalCapacity: cap, bookedUnits: g.qty, availableUnits: avail, is_available: true }),
+                });
+                if (postRes.ok) {
+                  const created = await postRes.json();
+                  const row = Array.isArray(created) && created.length ? created[0] : null;
+                  invId = row ? String(row.id || '') : null;
+                  bookedUnits = Number(row?.bookedUnits || g.qty);
+                  availableUnits = Number(row?.availableUnits || avail);
+                }
+              }
+              if (invId) {
+                const patchItemsUrl = `${supabaseUrl}/rest/v1/booking_items?bookingId=eq.${encodeURIComponent(b.id)}&productId=eq.${encodeURIComponent(g.productId)}&item_date=gte.${encodeURIComponent(`${g.dateStr}T00:00:00.000Z`)}&item_date=lt.${encodeURIComponent(`${g.dateStr}T23:59:59.999Z`)}`;
+                await fetch(patchItemsUrl, { method: 'PATCH', headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify({ inventoryId: invId }) });
+                const patchProdUrl = `${supabaseUrl}/rest/v1/products?id=eq.${encodeURIComponent(g.productId)}`;
+                await fetch(patchProdUrl, { method: 'PATCH', headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify({ total_bookings: bookedUnits }) });
+              }
+            }
+          }
+        }
+      } catch {}
+      return NextResponse.json(result);
     }
 
     if (action === 'cancel') {

@@ -145,10 +145,15 @@ export function BookingSummary({
                       )}
                     </Stack>
                   )}
-                  {typeof seg.capacity === 'number' && (
+                  {(
+                    typeof seg.capacity === 'number' ||
+                    (seg.boat && typeof seg.boat.capacity === 'number')
+                  ) && (
                     <Group justify="space-between" align="flex-start">
                       <Text size="sm" c="dimmed">Capacity</Text>
-                      <Text size="sm" fw={500} c="dark">{seg.capacity}</Text>
+                      <Text size="sm" fw={500} c="dark">
+                        {typeof seg.capacity === 'number' ? seg.capacity : (seg.boat?.capacity ?? '')}
+                      </Text>
                     </Group>
                   )}
                   {typeof seg.availableUnits === 'number' && (

@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     'product:products!fastboat_schedules_productId_fkey(id,name,price_idr,price_usd,featured_image,category:categories!products_categoryId_fkey(id,name),tenant:tenants!products_tenantId_fkey(vendor_name))',
     'departureRoute:routes!fastboat_schedules_departureRouteId_fkey(id,name)',
     'arrivalRoute:routes!fastboat_schedules_arrivalRouteId_fkey(id,name)',
-    'boat:boats!fastboat_schedules_boatId_fkey(id,name,capacity,image_urls)'
+    'boat:boats!fastboat_schedules_boatId_fkey(id,name,capacity,registration_number,image_urls)'
   ].join(',');
 
   const url = `${supabaseUrl}/rest/v1/fastboat_schedules?select=${encodeURIComponent(select)}&isActive=eq.true`;
@@ -98,7 +98,7 @@ export async function GET(request: Request) {
     }
   }
 
-  const filteredByDate = invDate ? filtered.filter((s: any) => !!invMap[s?.product?.id ?? '']) : filtered;
+  const filteredByDate = filtered;
 
   if (onlyProviders) {
     const set = new Set<string>();
