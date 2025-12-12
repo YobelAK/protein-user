@@ -10,11 +10,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const Providers = require('./providers').Providers;
   let initialAuth: { userId?: string; email?: string; fullName?: string; avatarUrl?: string } | null = null;
   try {
-    const supabase = getSupabaseServerClient();
+    const supabase = await getSupabaseServerClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (user && (user.email || user.id)) {
       const email = user.email || '';
-      const hdrs = headers();
+      const hdrs = await headers();
       const host = hdrs.get('host') || `localhost:${process.env.PORT || 3000}`;
       const proto = hdrs.get('x-forwarded-proto') || 'http';
       const origin = `${proto}://${host}`;
@@ -34,7 +34,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     }
   } catch {}
   return (
-    <html lang="en">
+    <html lang="en" data-mantine-color-scheme="light" suppressHydrationWarning>
       <head>
         <ColorSchemeScript defaultColorScheme="light" />
       </head>

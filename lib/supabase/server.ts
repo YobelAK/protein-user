@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 
-export function getSupabaseServerClient() {
+export async function getSupabaseServerClient() {
   const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '') as string;
   const anon = (
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
@@ -10,7 +10,7 @@ export function getSupabaseServerClient() {
     process.env.SUPABASE_PUBLISHABLE_KEY ||
     ''
   ) as string;
-  const store = cookies();
+  const store = await cookies();
   const client = createServerClient(url, anon, {
     cookies: {
       get: (name: string) => store.get(name)?.value,
@@ -24,4 +24,3 @@ export function getSupabaseServerClient() {
   });
   return client as any;
 }
-

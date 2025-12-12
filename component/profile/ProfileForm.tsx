@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Box, Paper, Group, Text, ActionIcon, Grid, Button, Select, TextInput, Modal, Stack } from '@mantine/core';
+import { Box, Paper, Group, Text, ActionIcon, Grid, Button, Select, TextInput, Modal, Stack, Tabs } from '@mantine/core';
 import { Camera } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 
@@ -34,6 +34,11 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
   const [cpEmail, setCpEmail] = useState<string>('');
   const [cpSubmitting, setCpSubmitting] = useState(false);
   const [cpMessage, setCpMessage] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarMessage, setAvatarMessage] = useState<string | null>(null);
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const [avatarTab, setAvatarTab] = useState<'file' | 'url'>('file');
+  const [avatarUrlInput, setAvatarUrlInput] = useState('');
 
   // Avatar will be shown from database-only; fallback displays plain circle
 
@@ -54,7 +59,9 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
   };
 
   const onPickFile = () => {
-    fileRef.current?.click();
+    setAvatarOpen(true);
+    setAvatarTab('file');
+    setAvatarMessage(null);
   };
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -62,19 +69,68 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
     if (!file) return;
     const uid = String(formData.id || props.initialValues?.id || '');
     if (!uid) return;
-    const ext = file.name.split('.').pop() || 'jpg';
+    const ext = file.name.split('.')?.pop() || 'jpg';
     const path = `${uid}/avatar-${Date.now()}.${ext}`;
     const bucket = 'avatars';
-    const { data, error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true, contentType: file.type });
-    if (error) return;
-    const urlData = supabase.storage.from(bucket).getPublicUrl(path);
-    const publicUrl = urlData.data.publicUrl;
-    setFormData((prev) => ({ ...prev, avatarUrl: publicUrl }));
-    await fetch('/api/profile', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: uid, avatarUrl: publicUrl }),
-    });
+    setAvatarMessage(null);
+    setAvatarUploading(true);
+    try {
+      const storage = (supabase as any)?.storage;
+      if (!storage || typeof storage.from !== 'function') {
+        setAvatarMessage('Supabase belum dikonfigurasi');
+        return;
+      }
+      const up = await storage.from(bucket).upload(path, file, { upsert: true, contentType: file.type });
+      if (up?.error) {
+        setAvatarMessage(up.error.message || 'Gagal upload');
+        return;
+      }
+      const urlData = storage.from(bucket).getPublicUrl(path);
+      const publicUrl = urlData?.data?.publicUrl || '';
+      setFormData((prev) => ({ ...prev, avatarUrl: publicUrl }));
+      const resp = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: uid, avatarUrl: publicUrl }),
+      });
+      setAvatarMessage(resp.ok ? 'Foto berhasil diperbarui' : 'Gagal menyimpan avatar');
+      if (resp.ok) setAvatarOpen(false);
+    } catch (ex: any) {
+      setAvatarMessage(ex?.message || 'Terjadi kesalahan');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const onSubmitAvatarUrl = async () => {
+    const raw = (avatarUrlInput || '').trim();
+    const isValid = /^https?:\/\//i.test(raw);
+    if (!isValid) {
+      setAvatarMessage('URL tidak valid');
+      return;
+    }
+    const uid = String(formData.id || props.initialValues?.id || '');
+    if (!uid) return;
+    setAvatarUploading(true);
+    setAvatarMessage(null);
+    try {
+      const resp = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: uid, avatarUrl: raw }),
+      });
+      if (resp.ok) {
+        setFormData((prev) => ({ ...prev, avatarUrl: raw }));
+        setAvatarMessage('Foto berhasil diperbarui');
+        setAvatarOpen(false);
+      } else {
+        setAvatarMessage('Gagal menyimpan avatar');
+      }
+    } catch (ex: any) {
+      setAvatarMessage(ex?.message || 'Terjadi kesalahan');
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   return (
@@ -106,10 +162,14 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
             radius={9999}
             style={{ position: 'absolute', right: 0, bottom: 0, backgroundColor: '#2dbe8d' }}
             onClick={onPickFile}
+            disabled={avatarUploading}
           >
             <Camera size={16} color="#ffffff" />
           </ActionIcon>
           <input type="file" accept="image/*" ref={fileRef} style={{ display: 'none' }} onChange={onFileChange} />
+          {avatarMessage && (
+            <Text size="sm" style={{ marginTop: 8, color: avatarMessage.includes('berhasil') ? '#10b981' : '#ef4444' }}>{avatarMessage}</Text>
+          )}
         </Box>
         <Box>
           <Text size="lg" fw={600} c="#111827" mb={4}>
@@ -263,6 +323,31 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
             </Group>
           </Stack>
         </form>
+      </Modal>
+
+      <Modal opened={avatarOpen} onClose={() => { setAvatarOpen(false); setAvatarMessage(null); }} centered withCloseButton title="Change Photo">
+        <Tabs value={avatarTab} onChange={(v) => setAvatarTab((v as 'file' | 'url') || 'file')}>
+          <Tabs.List>
+            <Tabs.Tab value="file">Upload File</Tabs.Tab>
+            <Tabs.Tab value="url">Link URL</Tabs.Tab>
+          </Tabs.List>
+          <Tabs.Panel value="file" pt="md">
+            <Stack gap={12}>
+              <Button onClick={() => fileRef.current?.click()} disabled={avatarUploading} styles={{ root: { backgroundColor: '#284361' } }}>Pilih File</Button>
+              {avatarMessage && <Text style={{ color: avatarMessage.includes('berhasil') ? '#10b981' : '#ef4444' }}>{avatarMessage}</Text>}
+            </Stack>
+          </Tabs.Panel>
+          <Tabs.Panel value="url" pt="md">
+            <Stack gap={12}>
+              <TextInput value={avatarUrlInput} onChange={(e) => setAvatarUrlInput(e.currentTarget.value)} placeholder="https://example.com/avatar.jpg" styles={{ input: { padding: '12px 16px', border: '1px solid #d1d5db', borderRadius: 8 } }} />
+              <Group justify="flex-end">
+                <Button variant="light" onClick={() => setAvatarOpen(false)} disabled={avatarUploading}>Batal</Button>
+                <Button onClick={onSubmitAvatarUrl} disabled={avatarUploading} styles={{ root: { backgroundColor: '#284361' } }}>Simpan</Button>
+              </Group>
+              {avatarMessage && <Text style={{ color: avatarMessage.includes('berhasil') ? '#10b981' : '#ef4444' }}>{avatarMessage}</Text>}
+            </Stack>
+          </Tabs.Panel>
+        </Tabs>
       </Modal>
     </Paper>
   );

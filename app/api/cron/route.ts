@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@/lib/generated/prisma';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { db } from '@/lib/db';
 
 function todayString(): string {
   const d = new Date();
@@ -85,18 +83,12 @@ export async function POST() {
   const now = new Date();
   const result = await deactivateSchedulesSupabase(now);
 
-  const globalAny = globalThis as any;
-  const pgPool = globalAny.__btg_pgPool ?? new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
-  const pgAdapter = globalAny.__btg_pgAdapter ?? new PrismaPg(pgPool);
-  const db: PrismaClient = globalAny.__btg_prisma ?? new PrismaClient({ adapter: pgAdapter });
-  globalAny.__btg_pgPool = pgPool;
-  globalAny.__btg_pgAdapter = pgAdapter;
-  globalAny.__btg_prisma = db;
+  const prisma = db;
 
   const start = new Date(); start.setHours(0,0,0,0);
   const end = new Date(); end.setHours(23,59,59,999);
 
-  const bookings = await db.booking.findMany({
+  const bookings = await prisma.booking.findMany({
     where: {
       status: 'PAID',
       items: { some: { inventory: { inventoryDate: { gte: start, lt: end } } } },
@@ -119,7 +111,7 @@ export async function POST() {
       if (when.getTime() <= now.getTime()) { shouldComplete = true; break; }
     }
     if (shouldComplete) {
-      const u = await db.booking.update({ where: { id: b.id }, data: { status: 'COMPLETED', updatedAt: new Date() } });
+      const u = await prisma.booking.update({ where: { id: b.id }, data: { status: 'COMPLETED', updatedAt: new Date() } });
       updatedIds.push(u.id);
     }
   }

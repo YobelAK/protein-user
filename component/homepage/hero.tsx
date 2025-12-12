@@ -1,3 +1,4 @@
+"use client";
 import React from 'react';
 import { Box, Container, Title, Text, Button, Stack } from '@mantine/core';
 import Link from 'next/link';

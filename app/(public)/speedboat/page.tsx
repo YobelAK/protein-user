@@ -48,7 +48,7 @@ export default async function SpeedboatPage({ searchParams }: { searchParams?: {
   if (initialFrom) params.set('from', initialFrom);
   if (initialTo) params.set('to', initialTo);
   if (initialDeparture) params.set('date', initialDeparture);
-  const hdrs = headers();
+  const hdrs = await headers();
   const host = hdrs.get('host') || `localhost:${process.env.PORT || 3000}`;
   const proto = hdrs.get('x-forwarded-proto') || 'http';
   const origin = `${proto}://${host}`;

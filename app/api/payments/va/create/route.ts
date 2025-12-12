@@ -1,21 +1,13 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@/lib/generated/prisma';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { db } from '@/lib/db';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
 
-const globalAny = globalThis as any;
-const pgPool = globalAny.__btg_pgPool ?? new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
-const pgAdapter = globalAny.__btg_pgAdapter ?? new PrismaPg(pgPool);
-const db: PrismaClient = globalAny.__btg_prisma ?? new PrismaClient({ adapter: pgAdapter });
-globalAny.__btg_pgPool = pgPool;
-globalAny.__btg_pgAdapter = pgAdapter;
-globalAny.__btg_prisma = db;
+const prisma = db;
 
 export async function POST(request: Request) {
   try {
-    const supa = getSupabaseServerClient() as any;
+    const supa = await getSupabaseServerClient() as any;
     let { data: { user } } = await supa.auth.getUser();
     if (!user) {
       const authz = request.headers.get('authorization') || request.headers.get('Authorization') || '';
