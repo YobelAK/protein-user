@@ -123,6 +123,9 @@ export default async function SpeedboatPage({ searchParams }: { searchParams?: {
   return (
     <Suspense fallback={null}>
       <SpeedboatPageContent
+        initialFrom={initialFrom}
+        initialTo={initialTo}
+        initialDeparture={initialDeparture}
         initialProviders={initialProviders}
         initialResults={initialResults}
         initialOriginOptions={initialOriginOptions}

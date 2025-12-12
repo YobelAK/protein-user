@@ -66,7 +66,7 @@ function mapScheduleToResult(s: any, requestedPassengers?: number, departureDate
   } as ResultCardProps;
 }
 
-export default function SpeedboatPageContent(props: { initialProviders?: string[]; initialResults?: ResultCardProps[]; initialOriginOptions?: Array<{ value: string; label: string }>; initialDestinationOptions?: Array<{ value: string; label: string }> }) {
+export default function SpeedboatPageContent(props: { initialFrom?: string | null; initialTo?: string | null; initialDeparture?: string; initialProviders?: string[]; initialResults?: ResultCardProps[]; initialOriginOptions?: Array<{ value: string; label: string }>; initialDestinationOptions?: Array<{ value: string; label: string }> }) {
   const [sidebarOpened, { open, close }] = useDisclosure(false);
   const [results, setResults] = useState<ResultCardProps[]>(props.initialResults || []);
   const [schedules, setSchedules] = useState<any[]>([]);
@@ -85,9 +85,9 @@ export default function SpeedboatPageContent(props: { initialProviders?: string[
 
   useEffect(() => {
     const load = async () => {
-      const from = searchParams.get('from') ?? '';
-      const to = searchParams.get('to') ?? '';
-      const departure = searchParams.get('departure') ?? '';
+      const from = searchParams.get('from') ?? (props.initialFrom ?? '') ?? '';
+      const to = searchParams.get('to') ?? (props.initialTo ?? '') ?? '';
+      const departure = searchParams.get('departure') ?? (props.initialDeparture ?? '');
       const todayStr = (() => {
         const d = new Date();
         const y = d.getFullYear();
@@ -248,9 +248,9 @@ export default function SpeedboatPageContent(props: { initialProviders?: string[
     return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
   }, [props.initialDestinationOptions, schedules]);
 
-  const initialFrom = searchParams.get('from');
-  const initialTo = searchParams.get('to');
-  const initialDeparture = searchParams.get('departure') ?? '';
+  const initialFrom = searchParams.get('from') ?? (props.initialFrom ?? null);
+  const initialTo = searchParams.get('to') ?? (props.initialTo ?? null);
+  const initialDeparture = (searchParams.get('departure') ?? props.initialDeparture ?? '');
   const initialReturn = searchParams.get('return') ?? '';
   const initialPassengers = Number(searchParams.get('passengers') ?? '2') || 2;
 
