@@ -13713,6 +13713,7 @@ export namespace Prisma {
   export type RouteMinAggregateOutputType = {
     id: string | null
     name: string | null
+    image: string | null
     isActive: boolean | null
     createdAt: Date | null
     updatedAt: Date | null
@@ -13721,6 +13722,7 @@ export namespace Prisma {
   export type RouteMaxAggregateOutputType = {
     id: string | null
     name: string | null
+    image: string | null
     isActive: boolean | null
     createdAt: Date | null
     updatedAt: Date | null
@@ -13729,6 +13731,7 @@ export namespace Prisma {
   export type RouteCountAggregateOutputType = {
     id: number
     name: number
+    image: number
     isActive: number
     createdAt: number
     updatedAt: number
@@ -13739,6 +13742,7 @@ export namespace Prisma {
   export type RouteMinAggregateInputType = {
     id?: true
     name?: true
+    image?: true
     isActive?: true
     createdAt?: true
     updatedAt?: true
@@ -13747,6 +13751,7 @@ export namespace Prisma {
   export type RouteMaxAggregateInputType = {
     id?: true
     name?: true
+    image?: true
     isActive?: true
     createdAt?: true
     updatedAt?: true
@@ -13755,6 +13760,7 @@ export namespace Prisma {
   export type RouteCountAggregateInputType = {
     id?: true
     name?: true
+    image?: true
     isActive?: true
     createdAt?: true
     updatedAt?: true
@@ -13836,6 +13842,7 @@ export namespace Prisma {
   export type RouteGroupByOutputType = {
     id: string
     name: string
+    image: string | null
     isActive: boolean
     createdAt: Date
     updatedAt: Date
@@ -13861,6 +13868,7 @@ export namespace Prisma {
   export type RouteSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
     name?: boolean
+    image?: boolean
     isActive?: boolean
     createdAt?: boolean
     updatedAt?: boolean
@@ -13872,6 +13880,7 @@ export namespace Prisma {
   export type RouteSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
     name?: boolean
+    image?: boolean
     isActive?: boolean
     createdAt?: boolean
     updatedAt?: boolean
@@ -13880,6 +13889,7 @@ export namespace Prisma {
   export type RouteSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
     name?: boolean
+    image?: boolean
     isActive?: boolean
     createdAt?: boolean
     updatedAt?: boolean
@@ -13888,12 +13898,13 @@ export namespace Prisma {
   export type RouteSelectScalar = {
     id?: boolean
     name?: boolean
+    image?: boolean
     isActive?: boolean
     createdAt?: boolean
     updatedAt?: boolean
   }
 
-  export type RouteOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "name" | "isActive" | "createdAt" | "updatedAt", ExtArgs["result"]["route"]>
+  export type RouteOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "name" | "image" | "isActive" | "createdAt" | "updatedAt", ExtArgs["result"]["route"]>
   export type RouteInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     departureSchedules?: boolean | Route$departureSchedulesArgs<ExtArgs>
     arrivalSchedules?: boolean | Route$arrivalSchedulesArgs<ExtArgs>
@@ -13911,6 +13922,7 @@ export namespace Prisma {
     scalars: $Extensions.GetPayloadResult<{
       id: string
       name: string
+      image: string | null
       isActive: boolean
       createdAt: Date
       updatedAt: Date
@@ -14341,6 +14353,7 @@ export namespace Prisma {
   interface RouteFieldRefs {
     readonly id: FieldRef<"Route", 'String'>
     readonly name: FieldRef<"Route", 'String'>
+    readonly image: FieldRef<"Route", 'String'>
     readonly isActive: FieldRef<"Route", 'Boolean'>
     readonly createdAt: FieldRef<"Route", 'DateTime'>
     readonly updatedAt: FieldRef<"Route", 'DateTime'>
@@ -20223,6 +20236,7 @@ export namespace Prisma {
   export const RouteScalarFieldEnum: {
     id: 'id',
     name: 'name',
+    image: 'image',
     isActive: 'isActive',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt'
@@ -21440,6 +21454,7 @@ export namespace Prisma {
     NOT?: RouteWhereInput | RouteWhereInput[]
     id?: StringFilter<"Route"> | string
     name?: StringFilter<"Route"> | string
+    image?: StringNullableFilter<"Route"> | string | null
     isActive?: BoolFilter<"Route"> | boolean
     createdAt?: DateTimeFilter<"Route"> | Date | string
     updatedAt?: DateTimeFilter<"Route"> | Date | string
@@ -21450,6 +21465,7 @@ export namespace Prisma {
   export type RouteOrderByWithRelationInput = {
     id?: SortOrder
     name?: SortOrder
+    image?: SortOrderInput | SortOrder
     isActive?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -21463,6 +21479,7 @@ export namespace Prisma {
     AND?: RouteWhereInput | RouteWhereInput[]
     OR?: RouteWhereInput[]
     NOT?: RouteWhereInput | RouteWhereInput[]
+    image?: StringNullableFilter<"Route"> | string | null
     isActive?: BoolFilter<"Route"> | boolean
     createdAt?: DateTimeFilter<"Route"> | Date | string
     updatedAt?: DateTimeFilter<"Route"> | Date | string
@@ -21473,6 +21490,7 @@ export namespace Prisma {
   export type RouteOrderByWithAggregationInput = {
     id?: SortOrder
     name?: SortOrder
+    image?: SortOrderInput | SortOrder
     isActive?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -21487,6 +21505,7 @@ export namespace Prisma {
     NOT?: RouteScalarWhereWithAggregatesInput | RouteScalarWhereWithAggregatesInput[]
     id?: StringWithAggregatesFilter<"Route"> | string
     name?: StringWithAggregatesFilter<"Route"> | string
+    image?: StringNullableWithAggregatesFilter<"Route"> | string | null
     isActive?: BoolWithAggregatesFilter<"Route"> | boolean
     createdAt?: DateTimeWithAggregatesFilter<"Route"> | Date | string
     updatedAt?: DateTimeWithAggregatesFilter<"Route"> | Date | string
@@ -23043,6 +23062,7 @@ export namespace Prisma {
   export type RouteCreateInput = {
     id?: string
     name: string
+    image?: string | null
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -23053,6 +23073,7 @@ export namespace Prisma {
   export type RouteUncheckedCreateInput = {
     id?: string
     name: string
+    image?: string | null
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -23063,6 +23084,7 @@ export namespace Prisma {
   export type RouteUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
+    image?: NullableStringFieldUpdateOperationsInput | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -23073,6 +23095,7 @@ export namespace Prisma {
   export type RouteUncheckedUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
+    image?: NullableStringFieldUpdateOperationsInput | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -23083,6 +23106,7 @@ export namespace Prisma {
   export type RouteCreateManyInput = {
     id?: string
     name: string
+    image?: string | null
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -23091,6 +23115,7 @@ export namespace Prisma {
   export type RouteUpdateManyMutationInput = {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
+    image?: NullableStringFieldUpdateOperationsInput | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -23099,6 +23124,7 @@ export namespace Prisma {
   export type RouteUncheckedUpdateManyInput = {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
+    image?: NullableStringFieldUpdateOperationsInput | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -24604,6 +24630,7 @@ export namespace Prisma {
   export type RouteCountOrderByAggregateInput = {
     id?: SortOrder
     name?: SortOrder
+    image?: SortOrder
     isActive?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -24612,6 +24639,7 @@ export namespace Prisma {
   export type RouteMaxOrderByAggregateInput = {
     id?: SortOrder
     name?: SortOrder
+    image?: SortOrder
     isActive?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -24620,6 +24648,7 @@ export namespace Prisma {
   export type RouteMinOrderByAggregateInput = {
     id?: SortOrder
     name?: SortOrder
+    image?: SortOrder
     isActive?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -29053,6 +29082,7 @@ export namespace Prisma {
   export type RouteCreateWithoutDepartureSchedulesInput = {
     id?: string
     name: string
+    image?: string | null
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -29062,6 +29092,7 @@ export namespace Prisma {
   export type RouteUncheckedCreateWithoutDepartureSchedulesInput = {
     id?: string
     name: string
+    image?: string | null
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -29076,6 +29107,7 @@ export namespace Prisma {
   export type RouteCreateWithoutArrivalSchedulesInput = {
     id?: string
     name: string
+    image?: string | null
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -29085,6 +29117,7 @@ export namespace Prisma {
   export type RouteUncheckedCreateWithoutArrivalSchedulesInput = {
     id?: string
     name: string
+    image?: string | null
     isActive?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -29263,6 +29296,7 @@ export namespace Prisma {
   export type RouteUpdateWithoutDepartureSchedulesInput = {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
+    image?: NullableStringFieldUpdateOperationsInput | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -29272,6 +29306,7 @@ export namespace Prisma {
   export type RouteUncheckedUpdateWithoutDepartureSchedulesInput = {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
+    image?: NullableStringFieldUpdateOperationsInput | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -29292,6 +29327,7 @@ export namespace Prisma {
   export type RouteUpdateWithoutArrivalSchedulesInput = {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
+    image?: NullableStringFieldUpdateOperationsInput | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -29301,6 +29337,7 @@ export namespace Prisma {
   export type RouteUncheckedUpdateWithoutArrivalSchedulesInput = {
     id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
+    image?: NullableStringFieldUpdateOperationsInput | string | null
     isActive?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string

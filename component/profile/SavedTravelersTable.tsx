@@ -4,38 +4,24 @@ import { Box, Group, Table } from '@mantine/core';
 import { Edit2, Trash2 } from 'lucide-react';
 
 interface Traveler {
+  id?: string;
+  title: string;
   firstName: string;
   lastName: string;
-  age: number;
   nationality: string;
-  nationalId: string;
+  identityType: string;
+  idNumber: string;
+  ageCategory: string;
+  age?: number;
 }
 
-export function SavedTravelersTable() {
-  const travelers: Traveler[] = [
-    {
-      firstName: 'Nadya',
-      lastName: 'Astuti',
-      age: 22,
-      nationality: 'Indonesia',
-      nationalId: '123456789',
-    },
-    {
-      firstName: 'John',
-      lastName: 'Smith',
-      age: 28,
-      nationality: 'Australia',
-      nationalId: 'P987654321',
-    },
-    {
-      firstName: 'Sarah',
-      lastName: 'Johnson',
-      age: 25,
-      nationality: 'United States',
-      nationalId: 'P456789123',
-    },
-  ];
+type Props = {
+  travelers: Traveler[];
+  onEdit?: (traveler: Traveler, index: number) => void;
+  onDelete?: (traveler: Traveler, index: number) => void;
+};
 
+export function SavedTravelersTable({ travelers, onEdit, onDelete }: Props) {
   const headerStyle = { backgroundColor: '#e8f1f5' } as React.CSSProperties;
   const thStyle = {
     padding: '16px 24px',
@@ -64,18 +50,20 @@ export function SavedTravelersTable() {
       <Table w="100%">
         <thead style={headerStyle}>
           <tr>
+            <th style={thStyle}>Title</th>
             <th style={thStyle}>First Name</th>
             <th style={thStyle}>Last Name</th>
-            <th style={thStyle}>Age</th>
             <th style={thStyle}>Nationality</th>
-            <th style={thStyle}>National Id / Passport</th>
+            <th style={thStyle}>Identity Type</th>
+            <th style={thStyle}>ID Number</th>
+            <th style={thStyle}>Age Category</th>
             <th style={thStyle}>Actions</th>
           </tr>
         </thead>
         <tbody>
           {travelers.map((traveler, index) => (
             <tr
-              key={index}
+              key={traveler.id ?? index}
               style={{ transition: 'background-color 120ms ease' }}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLTableRowElement).style.backgroundColor = '#f9fafb';
@@ -84,11 +72,13 @@ export function SavedTravelersTable() {
                 (e.currentTarget as HTMLTableRowElement).style.backgroundColor = 'transparent';
               }}
             >
+              <td style={tdStyle}>{traveler.title}</td>
               <td style={tdStyle}>{traveler.firstName}</td>
               <td style={tdStyle}>{traveler.lastName}</td>
-              <td style={tdStyle}>{traveler.age}</td>
               <td style={tdStyle}>{traveler.nationality}</td>
-              <td style={tdStyle}>{traveler.nationalId}</td>
+              <td style={tdStyle}>{traveler.identityType}</td>
+              <td style={tdStyle}>{traveler.idNumber}</td>
+              <td style={tdStyle}>{traveler.ageCategory}</td>
               <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
                 <Group gap={12}>
                   <Box
@@ -101,6 +91,7 @@ export function SavedTravelersTable() {
                     onMouseLeave={(e) => {
                       (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
                     }}
+                    onClick={() => onEdit?.(traveler, index)}
                   >
                     <Edit2 size={18} style={{ color: '#284361' }} />
                   </Box>
@@ -114,6 +105,7 @@ export function SavedTravelersTable() {
                     onMouseLeave={(e) => {
                       (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
                     }}
+                    onClick={() => onDelete?.(traveler, index)}
                   >
                     <Trash2 size={18} style={{ color: '#2dbe8d' }} />
                   </Box>

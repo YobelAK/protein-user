@@ -3,7 +3,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Paper, Grid, Stack, Text, Select, TextInput, Checkbox, Group, Button, Box } from '@mantine/core';
 import { IconChevronDown, IconCalendar, IconUsers } from '@tabler/icons-react';
-import { PassengerSelector, PassengerCounts } from './passenger-selector';
+import { PassengerSelector, PassengerCounts } from '@/components/layout/passengerselector';
 
 type Option = { value: string; label: string };
 
@@ -15,7 +15,14 @@ export function SearchBar({
   initialDeparture = '',
   initialReturn = '',
   initialPassengers = 2,
+  inboundMode = false,
   onSearch,
+  onReturnToggle,
+  onFromChange,
+  onToChange,
+  onDepartureChange,
+  onReturnDateChange,
+  onPassengersChange,
 }: {
   originOptions?: Option[];
   destinationOptions?: Option[];
@@ -24,13 +31,27 @@ export function SearchBar({
   initialDeparture?: string;
   initialReturn?: string;
   initialPassengers?: number;
+  inboundMode?: boolean;
   onSearch?: (params: { from: string | null; to: string | null; departure?: string; return?: string; passengers?: number }) => void;
+  onReturnToggle?: (checked: boolean, params: { from: string | null; to: string | null; departure?: string; return?: string; passengers?: number }) => void;
+  onFromChange?: (params: { from: string | null; to: string | null; departure?: string; return?: string; passengers?: number }) => void;
+  onToChange?: (params: { from: string | null; to: string | null; departure?: string; return?: string; passengers?: number }) => void;
+  onDepartureChange?: (params: { from: string | null; to: string | null; departure?: string; return?: string; passengers?: number }) => void;
+  onReturnDateChange?: (params: { from: string | null; to: string | null; departure?: string; return?: string; passengers?: number }) => void;
+  onPassengersChange?: (params: { from: string | null; to: string | null; departure?: string; return?: string; passengers?: number }) => void;
 }) {
-  const [returnTrip, setReturnTrip] = useState(false);
+  const [returnTrip, setReturnTrip] = useState(Boolean(initialReturn));
   const [showPassengerSelector, setShowPassengerSelector] = useState(false);
   const [from, setFrom] = useState<string | null>(initialFrom);
   const [to, setTo] = useState<string | null>(initialTo);
-  const [departure, setDeparture] = useState<string>(initialDeparture);
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${da}`;
+  }, []);
+  const [departure, setDeparture] = useState<string>(initialDeparture || todayStr);
   const [ret, setRet] = useState<string>(initialReturn);
   const [passengers, setPassengers] = useState<PassengerCounts>({
     adult: Math.max(1, Number(initialPassengers || 2)),
@@ -53,9 +74,52 @@ export function SearchBar({
     };
   }, []);
 
+  useEffect(() => {
+    setFrom(initialFrom ?? null);
+  }, [initialFrom]);
+
+  useEffect(() => {
+    setTo(initialTo ?? null);
+  }, [initialTo]);
+
+  useEffect(() => {
+    if (inboundMode) {
+      try {
+        const raw = typeof window !== 'undefined' ? (localStorage.getItem('rt_outbound_selected') || '') : '';
+        const obj = raw ? JSON.parse(raw) : null;
+        const dep = String(obj?.departureDate || initialDeparture || todayStr);
+        setDeparture(dep);
+      } catch {
+        setDeparture(initialDeparture || todayStr);
+      }
+    } else {
+      setDeparture(initialDeparture || todayStr);
+    }
+  }, [initialDeparture, todayStr, inboundMode]);
+
+  useEffect(() => {
+    setRet(initialReturn);
+    setReturnTrip(Boolean(initialReturn));
+  }, [initialReturn]);
+
+  useEffect(() => {
+    if (inboundMode) {
+      setReturnTrip(true);
+      setRet(initialReturn);
+    }
+  }, [inboundMode, initialReturn, todayStr]);
+
+  useEffect(() => {
+    setPassengers({ adult: Math.max(1, Number(initialPassengers || 2)), child: 0, infant: 0 });
+  }, [initialPassengers]);
+
   const handlePassengerDone = (newPassengers: PassengerCounts) => {
     setPassengers(newPassengers);
     setShowPassengerSelector(false);
+    const total = newPassengers.adult + newPassengers.child + newPassengers.infant;
+    const dep = departure;
+    const retParam = returnTrip ? ret : undefined;
+    onPassengersChange?.({ from, to, departure: dep, return: retParam, passengers: total });
   };
 
   const getPassengerText = () => {
@@ -70,29 +134,34 @@ export function SearchBar({
     return parts.join(', ');
   };
 
-  const todayStr = useMemo(() => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const da = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${da}`;
-  }, []);
+  const handleDepartureChange = (value: string) => {
+    setDeparture(value || todayStr);
+    const dep = (value || todayStr);
+    const total = passengers.adult + passengers.child + passengers.infant;
+    const retParam = returnTrip ? ret : undefined;
+    onDepartureChange?.({ from, to, departure: dep, return: retParam, passengers: total });
+  };
 
   const triggerSearch = () => {
+    try { localStorage.removeItem('rt_outbound_selected'); } catch {}
+    try { localStorage.removeItem('rt_inbound_selected'); } catch {}
+    try { localStorage.removeItem('rt_passengers'); } catch {}
     const total = passengers.adult + passengers.child + passengers.infant;
-    onSearch?.({ from, to, departure, return: ret, passengers: total });
+    const dep = inboundMode ? ret : departure;
+    onSearch?.({ from, to, departure: dep, return: returnTrip ? ret : undefined, passengers: total });
   };
 
   return (
     <Paper shadow="sm" radius="lg" p="xl" bg="white">
       <Grid gutter="md">
-        <Grid.Col span={{ base: 12, md: 2 }}>
+        <Grid.Col span={{ base: 12, md: 1.5 }}>
           <Stack gap="xs">
             <Text size="sm" c="dimmed">From</Text>
             <Select
               data={originOptions}
               value={from}
-              onChange={setFrom}
+              onChange={(v) => { setFrom(v); const total = passengers.adult + passengers.child + passengers.infant; const dep = departure; const retParam = returnTrip ? ret : undefined; onFromChange?.({ from: v, to, departure: dep, return: retParam, passengers: total }); }}
+              disabled={false}
               rightSection={<IconChevronDown size={16} />}
               styles={{
                 input: {
@@ -105,13 +174,14 @@ export function SearchBar({
           </Stack>
         </Grid.Col>
         
-        <Grid.Col span={{ base: 12, md: 2 }}>
+        <Grid.Col span={{ base: 12, md: 1.5 }}>
           <Stack gap="xs">
             <Text size="sm" c="dimmed">To</Text>
             <Select
               data={destinationOptions}
               value={to}
-              onChange={setTo}
+              onChange={(v) => { setTo(v); const total = passengers.adult + passengers.child + passengers.infant; const dep = departure; const retParam = returnTrip ? ret : undefined; onToChange?.({ from, to: v, departure: dep, return: retParam, passengers: total }); }}
+              disabled={false}
               rightSection={<IconChevronDown size={16} />}
               styles={{
                 input: {
@@ -125,30 +195,34 @@ export function SearchBar({
         </Grid.Col>
         
         <Grid.Col span={{ base: 12, md: 2 }}>
-                          <TextInput
-                            label="Departure Date"
-                            type="date"
-                            placeholder="mm/dd/yyyy"
-                            leftSection={<IconCalendar size={20} />}
-                            value={departure}
-                            onChange={(e) => setDeparture(e.currentTarget.value)}
-                            min={todayStr}
-                            styles={{
-                              input: {
-                                backgroundColor: '#f5f7fa',
-                                border: '1px solid #d1d5db',
-                                '&:focus': {
-                                  borderColor: '#284361'
-                                }
-                              },
-                              label: {
-                                fontSize: '14px',
-                                color: '#6b7280',
-                                marginBottom: '8px'
-                              }
-                            }}
-                          />
-                        </Grid.Col>
+          <TextInput
+            label="Departure Date"
+            type="date"
+            placeholder="mm/dd/yyyy"
+            leftSection={<IconCalendar size={20} />}
+            value={departure}
+            onChange={(e) => handleDepartureChange(e.currentTarget.value)}
+            min={todayStr}
+            disabled={false}
+            styles={{
+              input: {
+                backgroundColor: '#f5f7fa',
+                border: '1px solid #d1d5db',
+                '&:focus': {
+                  borderColor: '#284361'
+                },
+                '&:disabled': {
+                  opacity: 0.5
+                }
+              },
+              label: {
+                fontSize: '14px',
+                color: '#6b7280',
+                marginBottom: '8px'
+              }
+            }}
+          />
+        </Grid.Col>
         
                         <Grid.Col span={{ base: 12, md: 2 }}>
                           <Box>
@@ -157,7 +231,8 @@ export function SearchBar({
                               <Checkbox
                                 label="Return"
                                 checked={returnTrip}
-                                onChange={(event) => setReturnTrip(event.currentTarget.checked)}
+                                disabled={false}
+                                onChange={(event) => { const checked = event.currentTarget.checked; setReturnTrip(checked); if (!checked) setRet(''); const total = passengers.adult + passengers.child + passengers.infant; const dep = inboundMode ? ret : departure; onReturnToggle?.(checked, { from, to, departure: dep, return: checked ? ret : undefined, passengers: total }); }}
                                 size="sm"
                                 styles={{
                                   label: {
@@ -173,7 +248,7 @@ export function SearchBar({
                               disabled={!returnTrip}
                               leftSection={<IconCalendar size={20} />}
                               value={ret}
-                              onChange={(e) => setRet(e.currentTarget.value)}
+                              onChange={(e) => { const val = e.currentTarget.value; setRet(val); const total = passengers.adult + passengers.child + passengers.infant; const depEff = inboundMode ? val : departure; onReturnDateChange?.({ from, to, departure: depEff, return: returnTrip ? val : undefined, passengers: total }); }}
                               min={todayStr}
                               styles={{
                                 input: {
@@ -191,7 +266,7 @@ export function SearchBar({
                           </Box>
                         </Grid.Col>
         
-        <Grid.Col span={{ base: 12, md: 2 }} ref={passengerRef}>
+        <Grid.Col span={{ base: 12, md: 3 }} ref={passengerRef}>
           <Stack gap="xs">
             <Text size="sm" c="dimmed">Passengers</Text>
             <div style={{ position: 'relative' }}>
@@ -245,6 +320,7 @@ export function SearchBar({
               ':hover': { backgroundColor: '#1f3349' }
             }}
             onClick={triggerSearch}
+            disabled
           >
             Search
           </Button>

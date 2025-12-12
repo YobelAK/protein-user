@@ -1,4 +1,5 @@
-import React from 'react';
+'use client';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Container,
@@ -12,44 +13,39 @@ import {
   ActionIcon,
   Rating
 } from '@mantine/core';
+import { Transition } from '@mantine/core';
 import { IconStar, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
-
-const testimonials = [
-  {
-    id: 1,
-    name: 'Sarah Johnson',
-    country: 'Australia',
-    rating: 5,
-    text: 'Amazing speedboat service! The trip to Nusa Penida was smooth and the crew was very professional. Highly recommend for anyone visiting Bali.',
-    avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&q=80'
-  },
-  {
-    id: 2,
-    name: 'Marco Rodriguez',
-    country: 'Spain',
-    rating: 5,
-    text: 'The watersport activities were incredible! Great equipment, safety measures, and the staff made sure we had an unforgettable experience.',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&q=80'
-  },
-  {
-    id: 3,
-    name: 'Emily Chen',
-    country: 'Singapore',
-    rating: 4,
-    text: 'Beach club experience was fantastic. Great food, amazing views, and excellent service. Perfect place to relax and enjoy Bali.',
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&q=80'
-  },
-  {
-    id: 4,
-    name: 'David Thompson',
-    country: 'United Kingdom',
-    rating: 5,
-    text: 'The cultural tour was enlightening and well-organized. Our guide was knowledgeable and passionate about Balinese culture.',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&q=80'
-  }
-];
+type ReviewCard = { id: string; name: string; country: string; rating: number; text: string; avatar: string };
 
 export function Testimonials() {
+  const [reviews, setReviews] = useState<ReviewCard[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [mounted, setMounted] = useState(true);
+  const [anim, setAnim] = useState<'slide-left' | 'slide-right'>('slide-right');
+  const pendingOffset = React.useRef<number | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/bookings?topReviews=1', { cache: 'no-store' });
+        const data = await res.json();
+        const list: ReviewCard[] = Array.isArray(data?.reviews) ? data.reviews.map((r: any) => ({
+          id: String(r.id || ''),
+          name: String(r.name || 'Anonymous'),
+          country: String(r.country || ''),
+          rating: Number(r.rating || 0),
+          text: String(r.text || ''),
+          avatar: String(r.avatar || ''),
+        })) : [];
+        if (mounted) setReviews(list);
+      } catch {}
+    })();
+    return () => { mounted = false };
+  }, []);
+
+  const visible = reviews.slice(offset, Math.min(offset + 4, reviews.length));
+
   return (
     <Box style={{ backgroundColor: '#f8f9fa', padding: '16px 0' }}>
       <Container size="xl">
@@ -63,74 +59,103 @@ export function Testimonials() {
             </Text>
           </Stack>
           <Group gap="xs">
-            <ActionIcon 
-              variant="outline" 
+            <ActionIcon
+              variant="outline"
               size="lg"
               style={{ borderColor: '#dee2e6', backgroundColor: 'white' }}
+              onClick={() => {
+                if (offset <= 0 || !mounted) return;
+                setAnim('slide-right');
+                pendingOffset.current = Math.max(0, offset - 1);
+                setMounted(false);
+              }}
+              disabled={offset <= 0 || !mounted}
             >
               <IconChevronLeft size={20} />
             </ActionIcon>
-            <ActionIcon 
-              variant="outline" 
+            <ActionIcon
+              variant="outline"
               size="lg"
               style={{ borderColor: '#dee2e6', backgroundColor: 'white' }}
+              onClick={() => {
+                const maxOffset = Math.max(0, reviews.length - 4);
+                if (reviews.length <= 4 || offset >= maxOffset || !mounted) return;
+                setAnim('slide-left');
+                pendingOffset.current = Math.min(maxOffset, offset + 1);
+                setMounted(false);
+              }}
+              disabled={reviews.length <= 4 || offset >= Math.max(0, reviews.length - 4) || !mounted}
             >
               <IconChevronRight size={20} />
             </ActionIcon>
           </Group>
         </Group>
         
-        <SimpleGrid
-          cols={{ base: 1, md: 2, lg: 4 }}
-          spacing="lg"
-        >
-          {testimonials.map((testimonial) => (
-            <Card
-              key={testimonial.id}
-              shadow="md"
-              radius="xl"
-              p="xl"
-              bg="white"
-              style={{
-                transition: 'box-shadow 0.3s ease',
-                ':hover': { boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }
-              }}
-            >
-                <Stack gap="md">
-                  <Rating 
-                    value={testimonial.rating} 
-                    readOnly 
-                    size="sm"
-                    color="yellow"
-                  />
-                  <Text c="#374151" style={{ 
-                    display: '-webkit-box',
-                    WebkitLineClamp: 4,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden'
-                  }}>
-                    "{testimonial.text}"
-                  </Text>
-                  <Group gap="md">
-                    <Avatar 
-                      src={testimonial.avatar} 
-                      alt={testimonial.name}
-                      size="lg"
-                      radius="xl"
-                    />
-                    <Stack gap={2}>
-                      <Text fw={600} c="#1a1a1a">
-                        {testimonial.name}
-                      </Text>
-                      <Text size="sm" c="dimmed">
-                        {testimonial.country}
-                      </Text>
-                    </Stack>
-                  </Group>
-                </Stack>
-            </Card>
-          ))}
-        </SimpleGrid>
+        <Transition mounted={mounted} transition={anim} duration={300} exitDuration={220} onExited={() => {
+          if (pendingOffset.current != null) {
+            setOffset(pendingOffset.current);
+            pendingOffset.current = null;
+            setMounted(true);
+          }
+        }}>
+          {(styles: React.CSSProperties) => (
+            <Box style={{ ...styles }}>
+              <SimpleGrid
+                cols={{ base: 1, md: 2, lg: 4 }}
+                spacing="lg"
+              >
+                {visible.map((testimonial) => (
+                  <Card
+                    key={testimonial.id}
+                    shadow="md"
+                    radius="xl"
+                    p="xl"
+                    bg="white"
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      transition: 'box-shadow 0.3s ease',
+                    }}
+                  >
+                      <Group gap="xs" mb="md">
+                        <IconStar size={18} color="#f59e0b" />
+                        <Rating value={testimonial.rating} readOnly size="sm" color="yellow" />
+                      </Group>
+
+                      <Box style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+                        <Text c="#374151" style={{ 
+                          display: '-webkit-box',
+                          WebkitLineClamp: 4,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          maxWidth: '100%'
+                        }}>
+                          "{testimonial.text}"
+                        </Text>
+                      </Box>
+
+                      <Group gap="md" mt="md">
+                        <Avatar 
+                          src={testimonial.avatar} 
+                          alt={testimonial.name}
+                          size="lg"
+                          radius="xl"
+                        />
+                        <Stack gap={2}>
+                          <Text fw={600} c="#1a1a1a">
+                            {testimonial.name}
+                          </Text>
+                          <Text size="sm" c="dimmed">
+                            {testimonial.country}
+                          </Text>
+                        </Stack>
+                      </Group>
+                  </Card>
+                ))}
+              </SimpleGrid>
+            </Box>
+          )}
+        </Transition>
       </Container>
     </Box>
   );

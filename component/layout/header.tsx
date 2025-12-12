@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Menu as MenuIcon, X, ChevronDown, Globe, DollarSign } from 'lucide-react';
+import React from 'react';
+import { Menu as MenuIcon, X, ChevronDown, Globe, DollarSign, User, CalendarDays, Users, LifeBuoy, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
   AppShell, 
   Group, 
-  Burger, 
   Button, 
   Avatar, 
   Text, 
@@ -18,73 +17,38 @@ import {
   Box,
   Container
 } from '@mantine/core';
-import { Menu as DropdownMenu } from '@mantine/core';
+import { Menu } from '@mantine/core';
 import { supabase } from '@/lib/supabase/client';
-import { useDisclosure } from '@mantine/hooks';
+import { useAuth } from '@/app/providers';
+ 
 
 export function Header() {
-  const [mobileMenuOpen, { toggle: toggleMobileMenu, close: closeMobileMenu }] = useDisclosure(false);
   const pathname = usePathname();
   const router = useRouter();
-  const [userInitials, setUserInitials] = useState<string | null>(null);
-  const [userName, setUserName] = useState<string>('');
+  const auth = useAuth();
 
-  useEffect(() => {
-    const computeInitials = (name: string) => {
-      const parts = name.trim().split(/\s+/).filter(Boolean);
-      if (parts.length === 0) return null;
-      const first = parts[0]?.[0] || '';
-      const last = parts.length > 1 ? parts[parts.length - 1]?.[0] || '' : '';
-      const letters = (first + last).toUpperCase();
-      return letters || null;
-    };
-    const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const full = (session.user as any).user_metadata?.full_name || '';
-        const email = session.user.email || '';
-        const name = full || email.split('@')[0] || '';
-        setUserName(name);
-        setUserInitials(computeInitials(name));
-      } else {
-        setUserName('');
-        setUserInitials(null);
-      }
-    };
-    init();
-    const { data: listener } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
-      if (session) {
-        const full = (session.user as any).user_metadata?.full_name || '';
-        const email = session.user.email || '';
-        const name = full || email.split('@')[0] || '';
-        setUserName(name);
-        const parts = name.trim().split(/\s+/).filter(Boolean);
-        const first = parts[0]?.[0] || '';
-        const last = parts.length > 1 ? parts[parts.length - 1]?.[0] || '' : '';
-        const letters = (first + last).toUpperCase();
-        setUserInitials(letters || null);
-      } else {
-        setUserName('');
-        setUserInitials(null);
-      }
-    });
-    return () => {
-      listener?.subscription?.unsubscribe();
-    };
-  }, []);
+  const computeInitials = (name: string) => {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'NA';
+    const first = parts[0]?.[0] || '';
+    const last = parts.length > 1 ? parts[parts.length - 1]?.[0] || '' : '';
+    const letters = (first + last).toUpperCase();
+    return letters || 'NA';
+  };
+
+  const userName = React.useMemo(() => {
+    const full = (auth?.fullName || '').trim();
+    const email = (auth?.email || '').trim();
+    return full || (email ? email.split('@')[0] : '');
+  }, [auth?.fullName, auth?.email]);
+  const userInitials = auth ? computeInitials(userName) : null;
+  const avatarUrl = auth?.avatarUrl || '';
 
   const isActive = (path: string) => {
     return pathname === path;
   };
 
-  const navItems = [
-    { href: '/', label: 'Home' },
-    { href: '/speedboat', label: 'Speedboat' },
-    { href: '/watersport', label: 'Watersport' },
-    { href: '/tour', label: 'Tours' },
-    { href: '/beachclub', label: 'Beach Club' },
-    { href: '/promo', label: 'Promo' },
-  ];
+  
 
   return (
     <Box 
@@ -102,15 +66,12 @@ export function Header() {
           {/* Logo */}
           <Group>
             <Link href="/" style={{ textDecoration: 'none' }}>
-              <Group gap="sm">
-                <Avatar 
-                  size="md" 
-                  color="primary" 
-                  style={{ backgroundColor: '#284361' }}
-                >
-                  N
-                </Avatar>
-                <Text fw={700} size="lg" c="dark">Name</Text>
+              <Group gap="sm" align="center">
+                <img
+                  src="/asset/logo/besttripguide.png"
+                  alt="Best Trip Guide"
+                  style={{ height: 50}}
+                />
               </Group>
             </Link>
           </Group>
@@ -174,102 +135,48 @@ export function Header() {
               </>
             )}
             {userInitials && (
-              <DropdownMenu position="bottom-end" shadow="md">
-                <DropdownMenu.Target>
-                  <Avatar 
-                    size={40} 
-                    radius="xl" 
-                    style={{ backgroundColor: '#284361', color: '#ffffff', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    {userInitials}
-                  </Avatar>
-                </DropdownMenu.Target>
-                <DropdownMenu.Dropdown>
-                  <DropdownMenu.Label>{userName}</DropdownMenu.Label>
-                  <DropdownMenu.Item onClick={() => router.push('/profile')}>My Profile</DropdownMenu.Item>
-                  <DropdownMenu.Item onClick={() => router.push('/profile/my-bookings')}>My Bookings</DropdownMenu.Item>
-                  <DropdownMenu.Item onClick={() => router.push('/profile/saved-travelers')}>Saved Travelers</DropdownMenu.Item>
-                  <DropdownMenu.Item onClick={() => router.push('/profile/support-center')}>Support Center</DropdownMenu.Item>
-                  <DropdownMenu.Item onClick={async () => { await supabase.auth.signOut(); setUserInitials(null); setUserName(''); router.push('/'); }}>Logout</DropdownMenu.Item>
-                </DropdownMenu.Dropdown>
-              </DropdownMenu>
+              <Menu position="bottom-end" shadow="md">
+                <Menu.Target>
+                  <Avatar size={40} radius="xl" src={avatarUrl} style={{ cursor: 'pointer', border: '2px solid #284361' }} />
+                </Menu.Target>
+                <Menu.Dropdown style={{ borderRadius: 12, border: '1px solid #e6e7ea', fontFamily: 'Georgia, Times, "Times New Roman", serif' }}>
+                  <Menu.Label style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif', fontWeight: 600, color: '#284361', marginBottom: 6 }}>{userName}</Menu.Label>
+                  <Menu.Item leftSection={<User size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/profile')}>My Profile</Menu.Item>
+                  <Menu.Item leftSection={<CalendarDays size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/profile/my-bookings')}>My Bookings</Menu.Item>
+                  <Menu.Item leftSection={<Users size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/profile/saved-travelers')}>Saved Travelers</Menu.Item>
+                  <Menu.Item leftSection={<LifeBuoy size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/profile/support-center')}>Support Center</Menu.Item>
+                  <Menu.Item leftSection={<LogOut size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={async () => { await supabase.auth.signOut(); router.push('/'); }}>Logout</Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
             )}
             
           </Group>
-
-          {/* Mobile Menu Button */}
-          <Burger 
-            opened={mobileMenuOpen} 
-            onClick={toggleMobileMenu} 
-            hiddenFrom="md" 
-            size="sm" 
-          />
-        </Group>
-
-          {/* Mobile Menu */}
-          <Collapse in={mobileMenuOpen}>
-            <Box hiddenFrom="md" py="md">
-              <Divider mb="md" />
-              <Stack gap="md">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  style={{
-                    textDecoration: 'none',
-                    color: isActive(item.href) ? '#284361' : '#6c757d',
-                    fontWeight: isActive(item.href) ? 500 : 400
-                  }}
-                  onClick={closeMobileMenu}
-                >
-                  {item.label}
-                </Link>
-              ))}
-              <Divider my="md" />
-              <Group>
-                {!userInitials && (
+          <Group gap="md" hiddenFrom="md">
+            <Menu position="bottom-end" shadow="md">
+              <Menu.Target>
+                <Avatar size={40} radius="xl" src={avatarUrl} style={{ cursor: 'pointer', border: '2px solid #284361' }} />
+              </Menu.Target>
+              <Menu.Dropdown style={{ borderRadius: 12, border: '1px solid #e6e7ea', fontFamily: 'Georgia, Times, "Times New Roman", serif' }}>
+                {userInitials ? (
                   <>
-                    <Link href="/login" style={{ textDecoration: 'none' }} onClick={closeMobileMenu}>
-                      <Button variant="subtle" color="gray" size="sm">
-                        Login
-                      </Button>
-                    </Link>
-                    <Link href="/register" style={{ textDecoration: 'none' }} onClick={closeMobileMenu}>
-                      <Button 
-                        color="primary" 
-                        size="sm"
-                        style={{ backgroundColor: '#284361' }}
-                      >
-                        Register
-                      </Button>
-                    </Link>
+                    <Menu.Label style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif', fontWeight: 600, color: '#284361', marginBottom: 6 }}>{userName}</Menu.Label>
+                    <Menu.Item leftSection={<User size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/profile')}>My Profile</Menu.Item>
+                    <Menu.Item leftSection={<CalendarDays size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/profile/my-bookings')}>My Bookings</Menu.Item>
+                    <Menu.Item leftSection={<Users size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/profile/saved-travelers')}>Saved Travelers</Menu.Item>
+                    <Menu.Item leftSection={<LifeBuoy size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/profile/support-center')}>Support Center</Menu.Item>
+                    <Menu.Item leftSection={<LogOut size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={async () => { await supabase.auth.signOut(); router.push('/'); }}>Logout</Menu.Item>
+                  </>
+                ) : (
+                  <>
+                    <Menu.Item style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/login')}>Login</Menu.Item>
+                    <Menu.Item style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/register')}>Register</Menu.Item>
                   </>
                 )}
-                {userInitials && (
-                  <DropdownMenu position="bottom-end" shadow="md">
-                    <DropdownMenu.Target>
-                      <Avatar 
-                        size={40} 
-                        radius="xl" 
-                        style={{ backgroundColor: '#284361', color: '#ffffff', fontWeight: 700, cursor: 'pointer' }}
-                      >
-                        {userInitials}
-                      </Avatar>
-                    </DropdownMenu.Target>
-                    <DropdownMenu.Dropdown>
-                      <DropdownMenu.Label>{userName}</DropdownMenu.Label>
-                      <DropdownMenu.Item onClick={() => { router.push('/profile'); closeMobileMenu(); }}>My Profile</DropdownMenu.Item>
-                      <DropdownMenu.Item onClick={() => { router.push('/profile/my-bookings'); closeMobileMenu(); }}>My Bookings</DropdownMenu.Item>
-                      <DropdownMenu.Item onClick={() => { router.push('/profile/saved-travelers'); closeMobileMenu(); }}>Saved Travelers</DropdownMenu.Item>
-                      <DropdownMenu.Item onClick={() => { router.push('/profile/support-center'); closeMobileMenu(); }}>Support Center</DropdownMenu.Item>
-                      <DropdownMenu.Item onClick={async () => { await supabase.auth.signOut(); setUserInitials(null); setUserName(''); closeMobileMenu(); router.push('/'); }}>Logout</DropdownMenu.Item>
-                    </DropdownMenu.Dropdown>
-                  </DropdownMenu>
-                )}
-              </Group>
-              </Stack>
-            </Box>
-          </Collapse>
+              </Menu.Dropdown>
+            </Menu>
+          </Group>
+        </Group>
+ 
       </Container>
     </Box>
   );

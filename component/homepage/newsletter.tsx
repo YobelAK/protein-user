@@ -18,11 +18,33 @@ import { IconMail } from '@tabler/icons-react';
 
 export function Newsletter() {
   const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle newsletter signup
-    console.log('Newsletter signup:', email);
+    setLoading(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) {
+        setMessage('Berhasil mendaftar newsletter');
+        setEmail('');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(typeof data?.error === 'string' ? data.error : 'Terjadi kesalahan');
+      }
+    } catch (e) {
+      setError('Terjadi kesalahan');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -54,7 +76,7 @@ export function Newsletter() {
                   deals, new destinations, and travel tips for your Bali adventure.
                 </Text>
                 <form onSubmit={handleSubmit}>
-                  <Group gap="sm" align="flex-end">
+                  <Group gap="sm" align="flex-end" wrap="wrap">
                     <TextInput
                       type="email"
                       value={email}
@@ -79,17 +101,30 @@ export function Newsletter() {
                       type="submit"
                       style={{
                         backgroundColor: '#284361',
-                        ':hover': { backgroundColor: '#1e3149' },
-                        whiteSpace: 'nowrap'
+                        ':hover': { backgroundColor: '#1e3149' }
                       }}
-                      fw={600}
                       px="xl"
                       py="sm"
+                      styles={{
+                        root: { minWidth: 'max-content', height: 42 },
+                        label: { fontSize: 14, fontWeight: 600, lineHeight: 1.2 }
+                      }}
+                      loading={loading}
                     >
                       Register Now
                     </Button>
                   </Group>
                 </form>
+                {message && (
+                  <Text size="sm" c="green">
+                    {message}
+                  </Text>
+                )}
+                {error && (
+                  <Text size="sm" c="red">
+                    {error}
+                  </Text>
+                )}
                 <Text size="xs" c="dimmed">
                   By subscribing, you agree to our Privacy Policy. You can
                   unsubscribe at any time.

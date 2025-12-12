@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Paper, Group, Text, ActionIcon, Grid, Button, Select, TextInput } from '@mantine/core';
+import React, { useEffect, useState, useRef } from 'react';
+import { Box, Paper, Group, Text, ActionIcon, Grid, Button, Select, TextInput, Modal, Stack } from '@mantine/core';
 import { Camera } from 'lucide-react';
+import { supabase } from '@/lib/supabase/client';
 
 type ProfileInitialValues = {
   id?: string;
@@ -13,6 +14,7 @@ type ProfileInitialValues = {
   nationalId?: string;
   currency?: string;
   language?: string;
+  avatarUrl?: string;
 };
 
 export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSubmit?: (values: ProfileInitialValues) => Promise<void> | void }) {
@@ -24,7 +26,16 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
     nationalId: '',
     currency: 'USD',
     language: 'en',
+    avatarUrl: '',
   });
+
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [cpOpen, setCpOpen] = useState(false);
+  const [cpEmail, setCpEmail] = useState<string>('');
+  const [cpSubmitting, setCpSubmitting] = useState(false);
+  const [cpMessage, setCpMessage] = useState<string | null>(null);
+
+  // Avatar will be shown from database-only; fallback displays plain circle
 
   useEffect(() => {
     if (props.initialValues) {
@@ -40,6 +51,30 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
     if (props.onSubmit) {
       await props.onSubmit(formData);
     }
+  };
+
+  const onPickFile = () => {
+    fileRef.current?.click();
+  };
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const uid = String(formData.id || props.initialValues?.id || '');
+    if (!uid) return;
+    const ext = file.name.split('.').pop() || 'jpg';
+    const path = `${uid}/avatar-${Date.now()}.${ext}`;
+    const bucket = 'avatars';
+    const { data, error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true, contentType: file.type });
+    if (error) return;
+    const urlData = supabase.storage.from(bucket).getPublicUrl(path);
+    const publicUrl = urlData.data.publicUrl;
+    setFormData((prev) => ({ ...prev, avatarUrl: publicUrl }));
+    await fetch('/api/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: uid, avatarUrl: publicUrl }),
+    });
   };
 
   return (
@@ -60,15 +95,9 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
               fontSize: 24,
             }}
           >
-            {useMemo(() => {
-              const name = (formData.fullName || '').trim();
-              if (!name) return 'NA';
-              const parts = name.split(/\s+/).filter(Boolean);
-              const first = parts[0]?.[0] || '';
-              const last = parts.length > 1 ? parts[parts.length - 1]?.[0] || '' : '';
-              const letters = (first + last).toUpperCase();
-              return letters || 'NA';
-            }, [formData.fullName])}
+            {formData.avatarUrl ? (
+              <img src={formData.avatarUrl} alt="avatar" style={{ width: 96, height: 96, borderRadius: '9999px', objectFit: 'cover' }} />
+            ) : null}
           </Box>
           <ActionIcon
             aria-label="Upload photo"
@@ -76,9 +105,11 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
             size={32}
             radius={9999}
             style={{ position: 'absolute', right: 0, bottom: 0, backgroundColor: '#2dbe8d' }}
+            onClick={onPickFile}
           >
             <Camera size={16} color="#ffffff" />
           </ActionIcon>
+          <input type="file" accept="image/*" ref={fileRef} style={{ display: 'none' }} onChange={onFileChange} />
         </Box>
         <Box>
           <Text size="lg" fw={600} c="#111827" mb={4}>
@@ -177,7 +208,7 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
         >
           Save Changes
         </Button>
-        {/* <Button
+        <Button
           type="button"
           variant="outline"
           color="#284361"
@@ -189,14 +220,50 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
               '&:hover': { backgroundColor: '#284361', color: '#ffffff' },
             },
           }}
+          onClick={() => { setCpEmail(String(formData.email || '')); setCpOpen(true); setCpMessage(null); }}
         >
           Change Password
-        </Button> */}
+        </Button>
       </Group>
 
       <Text size="sm" c="#6b7280">
         Your profile helps us personalize your booking experience.
       </Text>
+      <Modal opened={cpOpen} onClose={() => { setCpOpen(false); setCpMessage(null); }} centered withCloseButton title="Reset Password">
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          setCpMessage(null);
+          const normalizedEmail = (cpEmail || '').trim().toLowerCase().replace(/[\u200B-\u200D\uFEFF]/g, '');
+          const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+          if (!emailRegex.test(normalizedEmail)) {
+            setCpMessage(`Email address "${cpEmail}" is invalid`);
+            return;
+          }
+          try {
+            setCpSubmitting(true);
+            const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : undefined;
+            const { error } = await (supabase as any).auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
+            if (error) {
+              setCpMessage(error.message || 'Gagal mengirim tautan reset');
+            } else {
+              setCpMessage('Tautan reset password telah dikirim ke email Anda');
+            }
+          } catch (ex: any) {
+            setCpMessage(ex?.message || 'Terjadi kesalahan');
+          } finally {
+            setCpSubmitting(false);
+          }
+        }}>
+          <Stack gap={16}>
+            <TextInput type="email" value={cpEmail} onChange={(e) => setCpEmail(e.currentTarget.value)} placeholder="you@example.com" required styles={{ input: { padding: '12px 16px', border: '1px solid #d1d5db', borderRadius: 8 } }} />
+            {cpMessage && <Text style={{ color: cpMessage.includes('dikirim') ? '#10b981' : '#ef4444' }}>{cpMessage}</Text>}
+            <Group justify="flex-end">
+              <Button variant="light" onClick={() => { setCpOpen(false); setCpMessage(null); }} disabled={cpSubmitting}>Batal</Button>
+              <Button type="submit" styles={{ root: { backgroundColor: '#284361' } }} disabled={cpSubmitting}>{cpSubmitting ? 'Mengirim...' : 'Kirim tautan reset'}</Button>
+            </Group>
+          </Stack>
+        </form>
+      </Modal>
     </Paper>
   );
 }

@@ -42,7 +42,7 @@
     "node_modules",
     "app/(public)/speedboat/**/*",
     "app/(auth)/**/*",
-    "app/profile/**/*",
+    "app/profile_backup/**/*",
     "services/**/*",
     "lib/**/*",
     "prisma/**/*"

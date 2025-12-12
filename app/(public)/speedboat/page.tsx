@@ -1,235 +1,133 @@
-'use client';
+import React, { Suspense } from 'react';
+import { headers } from 'next/headers';
+import SpeedboatPageContent from '@/components/speedboat/page-content';
 
-import React, { useEffect, useMemo, useState, Suspense } from 'react';
-import { Container, Box, Title, Text, Group, Stack, Drawer, Button } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
-import { IconFilter } from '@tabler/icons-react';
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
-import { SearchBar } from '@/components/speedboat/search-bar';
-import { FilterSidebar } from '@/components/speedboat/filter-sidebar';
-import { ResultsSection } from '@/components/speedboat/results-section';
-import type { ResultCardProps } from '@/components/speedboat/result-card';
-import { useSearchParams } from 'next/navigation';
-
-function SpeedboatPageContent() {
-  const [sidebarOpened, { open, close }] = useDisclosure(false);
-  const [results, setResults] = useState<ResultCardProps[]>([]);
-  const [schedules, setSchedules] = useState<any[]>([]);
-  const searchParams = useSearchParams();
-
-  useEffect(() => {
-    const toMinutes = (t: string | null) => {
-      if (!t) return null;
-      const [h, m] = t.split(':').map(Number);
-      if (Number.isNaN(h) || Number.isNaN(m)) return null;
-      return h * 60 + m;
+export default async function SpeedboatPage({ searchParams }: { searchParams?: { [key: string]: string | undefined } }) {
+  const initialFrom = searchParams?.from || '';
+  const initialTo = searchParams?.to || '';
+  const today = (() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${da}`;
+  })();
+  const initialDeparture = searchParams?.departure || today;
+  let initialProviders: string[] = [];
+  let initialResults: Array<{
+    id?: string | number;
+    provider: string;
+    vendorName?: string;
+    logo: string;
+    departureTime: string;
+    arrivalTime: string;
+    duration: string;
+    origin: string;
+    destination: string;
+    prices: {
+      indonesian: { adult: number; child: number };
+      foreigner: { adult: number; child: number };
     };
+    capacity?: number;
+    available?: number;
+  }> = [];
+  let initialOriginOptions: Array<{ value: string; label: string }> = [];
+  let initialDestinationOptions: Array<{ value: string; label: string }> = [];
 
-    const mapScheduleToResult = (s: any): ResultCardProps => {
-      const depMin = toMinutes(s.departure_time);
-      const arrMin = toMinutes(s.arrival_time);
-      const duration = depMin != null && arrMin != null && arrMin >= depMin
-        ? `${arrMin - depMin} min`
-        : '';
+  function toMinutes(t: string | null | undefined) {
+    if (!t) return null;
+    const parts = t.split(':');
+    if (parts.length < 2) return null;
+    const h = Number(parts[0]);
+    const m = Number(parts[1]);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    return h * 60 + m;
+  }
 
-      const priceIdr = Number(s.product?.price_idr ?? 0);
-
+  const params = new URLSearchParams();
+  if (initialFrom) params.set('from', initialFrom);
+  if (initialTo) params.set('to', initialTo);
+  if (initialDeparture) params.set('date', initialDeparture);
+  const hdrs = headers();
+  const host = hdrs.get('host') || `localhost:${process.env.PORT || 3000}`;
+  const proto = hdrs.get('x-forwarded-proto') || 'http';
+  const origin = `${proto}://${host}`;
+  const apiRes = await fetch(`${origin}/api/speedboat/schedules?${params.toString()}`, { cache: 'no-store' });
+  if (apiRes.ok) {
+    const json = await apiRes.json();
+    const items: any[] = Array.isArray(json.schedules) ? json.schedules : [];
+    const useData = items;
+    const set = new Set<string>();
+    initialResults = useData.map((s: any) => {
+      const depMin = toMinutes(s?.departure_time ?? null);
+      const arrMin = toMinutes(s?.arrival_time ?? null);
+      const duration = depMin != null && arrMin != null && arrMin >= depMin ? `${arrMin - depMin} min` : '';
+      const baseIdr = Number(s?.product?.price_idr ?? 0);
+      const providerName = s?.boat?.name ?? s?.product?.name ?? 'Unknown';
+      if (providerName) set.add(providerName);
+      const inv = s?.inventory;
+      const capacity = Number(inv?.totalCapacity ?? s?.capacity ?? s?.boat?.capacity ?? 0);
+      const available = Number(inv?.availableUnits ?? Math.max(0, (inv?.totalCapacity ?? s?.capacity ?? s?.boat?.capacity ?? 0) - (inv?.bookedUnits ?? 0)));
       return {
-        id: s.id,
-        provider: s.boat?.name ?? s.product?.name ?? 'Unknown',
-        logo: 'https://via.placeholder.com/60',
-        departureTime: s.departure_time ?? '',
-        arrivalTime: s.arrival_time ?? '',
+        id: s?.id,
+        provider: providerName,
+        vendorName: s?.product?.tenant?.vendor_name ?? undefined,
+        logo: (
+          (s?.product?.featured_image ? String(s.product.featured_image) : undefined)
+          ?? (Array.isArray(s?.boat?.image_urls) && s.boat.image_urls.length > 0 ? String(s.boat.image_urls[0]) : undefined)
+          ?? 'https://via.placeholder.com/60'
+        ),
+        departureTime: s?.departure_time ?? '',
+        arrivalTime: s?.arrival_time ?? '',
         duration,
-        origin: s.departureRoute?.name ?? '',
-        destination: s.arrivalRoute?.name ?? '',
+        origin: s?.departureRoute?.name ?? '',
+        destination: s?.arrivalRoute?.name ?? '',
         prices: {
-          indonesian: { adult: priceIdr, child: priceIdr },
-          foreigner: { adult: priceIdr, child: priceIdr },
+          indonesian: { adult: baseIdr, child: Math.round(baseIdr * 0.75) },
+          foreigner: { adult: baseIdr, child: Math.round(baseIdr * 0.75) },
         },
-      } as ResultCardProps;
-    };
+        capacity,
+        available,
+      };
+    });
+    initialProviders = Array.from(set).sort();
+  }
 
-    const load = async () => {
-      const res = await fetch('/api/speedboat/schedules', { cache: 'no-store' });
-      if (!res.ok) return;
-      const json = await res.json();
-      const items = Array.isArray(json.schedules) ? json.schedules : [];
-      setSchedules(items);
-      const from = searchParams.get('from');
-      const to = searchParams.get('to');
-      const filtered = items.filter((s: any) => {
-        const depOk = from ? (s?.departureRoute?.id === from) : true;
-        const arrOk = to ? (s?.arrivalRoute?.id === to) : true;
-        return depOk && arrOk;
-      });
-      setResults((filtered.length ? filtered : items).map(mapScheduleToResult));
-    };
-
-    load();
-  }, [searchParams]);
-
-  const originOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const s of schedules) {
-      const r = s?.departureRoute;
-      if (r?.id && r?.name) map.set(r.id, r.name);
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (supabaseUrl && serviceKey) {
+    const select = [
+      'departureRoute:routes!fastboat_schedules_departureRouteId_fkey(id,name)',
+      'arrivalRoute:routes!fastboat_schedules_arrivalRouteId_fkey(id,name)'
+    ].join(',');
+    const url = `${supabaseUrl}/rest/v1/fastboat_schedules?select=${encodeURIComponent(select)}&isActive=eq.true`;
+    const res = await fetch(url, {
+      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      const items: any[] = await res.json();
+      const fromMap = new Map<string, string>();
+      const toMap = new Map<string, string>();
+      for (const it of Array.isArray(items) ? items : []) {
+        const dr = it?.departureRoute;
+        const ar = it?.arrivalRoute;
+        if (dr?.id && dr?.name) fromMap.set(dr.id, dr.name);
+        if (ar?.id && ar?.name) toMap.set(ar.id, ar.name);
+      }
+      initialOriginOptions = Array.from(fromMap.entries()).map(([value, label]) => ({ value, label }));
+      initialDestinationOptions = Array.from(toMap.entries()).map(([value, label]) => ({ value, label }));
     }
-    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
-  }, [schedules]);
+  }
 
-  const destinationOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const s of schedules) {
-      const r = s?.arrivalRoute;
-      if (r?.id && r?.name) map.set(r.id, r.name);
-    }
-    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
-  }, [schedules]);
-
-  const initialFrom = searchParams.get('from');
-  const initialTo = searchParams.get('to');
-  const initialDeparture = searchParams.get('departure') ?? '';
-  const initialReturn = searchParams.get('return') ?? '';
-  const initialPassengers = Number(searchParams.get('passengers') ?? '2') || 2;
-
-  return (
-    <Box style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
-      <Header />
-      
-      {/* Hero Section
-      <Box
-        style={{
-          background: 'linear-gradient(to right, #284361, #1a2c3d)',
-          paddingTop: '64px',
-          paddingBottom: '64px'
-        }}
-      >
-        <Container size="xl">
-          <Stack align="center" gap="md">
-            <Title 
-              order={1} 
-              size="2.5rem" 
-              fw={700} 
-              c="white" 
-              ta="center"
-            >
-              Speedboat Services
-            </Title>
-            <Text 
-              size="lg" 
-              c="#e5e7eb" 
-              ta="center" 
-              maw={640}
-            >
-              Fast and reliable speedboat transfers between Bali and Nusa Penida. 
-              Book your journey with trusted operators.
-            </Text>
-          </Stack>
-        </Container>
-      </Box> */}
-
-      {/* Search Section */}
-      <Container size="xl" style={{ marginTop: '30px', position: 'relative', zIndex: 10 }}>
-        <SearchBar
-          originOptions={originOptions}
-          destinationOptions={destinationOptions}
-          initialFrom={initialFrom}
-          initialTo={initialTo}
-          initialDeparture={initialDeparture}
-          initialReturn={initialReturn}
-          initialPassengers={initialPassengers}
-          onSearch={({ from, to }) => {
-            const filtered = schedules.filter((s: any) => {
-              const depOk = from ? (s?.departureRoute?.id === from) : true;
-              const arrOk = to ? (s?.arrivalRoute?.id === to) : true;
-              return depOk && arrOk;
-            });
-            const toMinutes = (t: string | null) => {
-              if (!t) return null;
-              const [h, m] = t.split(':').map(Number);
-              if (Number.isNaN(h) || Number.isNaN(m)) return null;
-              return h * 60 + m;
-            };
-            const mapScheduleToResult = (s: any): ResultCardProps => {
-              const depMin = toMinutes(s.departure_time);
-              const arrMin = toMinutes(s.arrival_time);
-              const duration = depMin != null && arrMin != null && arrMin >= depMin
-                ? `${arrMin - depMin} min`
-                : '';
-              const priceIdr = Number(s.product?.price_idr ?? 0);
-              return {
-                id: s.id,
-                provider: s.boat?.name ?? s.product?.name ?? 'Unknown',
-                logo: 'https://via.placeholder.com/60',
-                departureTime: s.departure_time ?? '',
-                arrivalTime: s.arrival_time ?? '',
-                duration,
-                origin: s.departureRoute?.name ?? '',
-                destination: s.arrivalRoute?.name ?? '',
-                prices: {
-                  indonesian: { adult: priceIdr, child: priceIdr },
-                  foreigner: { adult: priceIdr, child: priceIdr },
-                },
-              } as ResultCardProps;
-            };
-            setResults((filtered.length ? filtered : schedules).map(mapScheduleToResult));
-          }}
-        />
-      </Container>
-
-      {/* Mobile Filters Toggle */}
-      <Box hiddenFrom="md" style={{ paddingLeft: 16, paddingRight: 16, marginTop: 12 }}>
-        <Button
-          variant="outline"
-          leftSection={<IconFilter size={18} />}
-          onClick={open}
-          styles={{
-            root: {
-              borderColor: '#d1d5db',
-              color: '#1f2937',
-              backgroundColor: 'white'
-            }
-          }}
-        >
-          Filter Speedboats
-        </Button>
-      </Box>
-      <Drawer opened={sidebarOpened} onClose={close} title="Filters" size="md" padding="md">
-        <FilterSidebar />
-      </Drawer>
-
-      {/* Main Content */}
-      <Container size="xl" py="xl">
-        <Group align="flex-start" gap="xl">
-          {/* Desktop Sidebar */}
-          <Box visibleFrom="md">
-            <FilterSidebar />
-          </Box>
-          <Box style={{ flex: 1 }}>
-            <Stack gap="md" mb="xl">
-              <Title order={2} size="1.5rem" fw={700} c="#111827">
-                Available Speedboat Services
-              </Title>
-              <Text c="#6b7280">
-                Choose from our selection of reliable speedboat operators
-              </Text>
-            </Stack>
-            <ResultsSection results={results} />
-          </Box>
-        </Group>
-      </Container>
-      
-      <Footer />
-    </Box>
-  );
-}
-
-export default function SpeedboatPage() {
   return (
     <Suspense fallback={null}>
-      <SpeedboatPageContent />
+      <SpeedboatPageContent
+        initialProviders={initialProviders}
+        initialResults={initialResults}
+        initialOriginOptions={initialOriginOptions}
+        initialDestinationOptions={initialDestinationOptions}
+      />
     </Suspense>
   );
 }

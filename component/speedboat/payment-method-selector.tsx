@@ -1,17 +1,37 @@
 'use client';
 
 import React from 'react';
-import { Paper, Title, Stack, Group, Text, Radio, UnstyledButton, Box } from '@mantine/core';
+import { Paper, Title, Stack, Group, Text, Radio, UnstyledButton, Box, Select, Collapse, Avatar, TextInput } from '@mantine/core';
 import { IconCreditCard, IconDeviceMobile, IconBuilding, IconHelpCircle } from '@tabler/icons-react';
 
 interface PaymentMethodSelectorProps {
   selectedMethod: string;
   onMethodChange: (method: string) => void;
+  vaBank?: string;
+  onVaBankChange?: (bank: string) => void;
+  cardNumber?: string;
+  cardExpiry?: string;
+  cardCvn?: string;
+  cardName?: string;
+  onCardNumberChange?: (v: string) => void;
+  onCardExpiryChange?: (v: string) => void;
+  onCardCvnChange?: (v: string) => void;
+  onCardNameChange?: (v: string) => void;
 }
 
 export function PaymentMethodSelector({
   selectedMethod,
-  onMethodChange
+  onMethodChange,
+  vaBank,
+  onVaBankChange,
+  cardNumber,
+  cardExpiry,
+  cardCvn,
+  cardName,
+  onCardNumberChange,
+  onCardExpiryChange,
+  onCardCvnChange,
+  onCardNameChange
 }: PaymentMethodSelectorProps) {
   return (
     <Paper 
@@ -33,6 +53,42 @@ export function PaymentMethodSelector({
           selected={selectedMethod === 'virtual-account'} 
           onSelect={() => onMethodChange('virtual-account')} 
         />
+        <Collapse in={selectedMethod === 'virtual-account'}>
+          <Box p="md" style={{ backgroundColor: 'white', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+            <Title order={6} size="sm" c="#374151" mb={8}>Select Bank</Title>
+            <Select
+              value={vaBank}
+              onChange={(v) => onVaBankChange?.(String(v || '').toUpperCase())}
+              data={[
+                { value: 'BCA', label: 'BCA' },
+                { value: 'BNI', label: 'BNI' },
+                { value: 'MANDIRI', label: 'Mandiri' },
+                { value: 'BRI', label: 'BRI' },
+                { value: 'CIMB', label: 'CIMB' },
+                { value: 'PERMATA', label: 'Permata' },
+              ]}
+              placeholder="Select bank"
+            />
+            <Group mt="sm">
+              {(() => {
+                const logos: Record<string, string> = {
+                  BCA: '/asset/bank/bca.svg',
+                  BNI: '/asset/bank/bni.svg',
+                  MANDIRI: '/asset/bank/mandiri.svg',
+                  BRI: '/asset/bank/bri.svg',
+                  CIMB: '/asset/bank/cimb.svg',
+                  PERMATA: '/asset/bank/permata.svg',
+                };
+                const src = logos[(vaBank || '').toUpperCase()] || '';
+                return src ? (
+                  <img src={src} alt={vaBank || ''} style={{ height: 24 }} />
+                ) : (
+                  <Avatar radius="sm">{(vaBank || '').toUpperCase()}</Avatar>
+                );
+              })()}
+            </Group>
+          </Box>
+        </Collapse>
         <PaymentOption 
           id="credit-card" 
           icon={<IconCreditCard size={20} />} 
@@ -41,6 +97,19 @@ export function PaymentMethodSelector({
           selected={selectedMethod === 'credit-card'} 
           onSelect={() => onMethodChange('credit-card')} 
         />
+        <Collapse in={selectedMethod === 'credit-card'}>
+          <Box p="md" style={{ backgroundColor: 'white', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+            <Title order={6} size="sm" c="#374151" mb={8}>Card Details</Title>
+            <Stack gap="sm">
+              <TextInput label="Card Number" placeholder="4111 1111 1111 1111" value={cardNumber} onChange={(e) => onCardNumberChange?.(e.currentTarget.value)} />
+              <Group grow>
+                <TextInput label="Expiry (MM/YY)" placeholder="12/29" value={cardExpiry} onChange={(e) => onCardExpiryChange?.(e.currentTarget.value)} />
+                <TextInput label="CVV" placeholder="123" value={cardCvn} onChange={(e) => onCardCvnChange?.(e.currentTarget.value)} />
+              </Group>
+              <TextInput label="Name on Card" placeholder="Your name" value={cardName} onChange={(e) => onCardNameChange?.(e.currentTarget.value)} />
+            </Stack>
+          </Box>
+        </Collapse>
         <PaymentOption 
           id="qris" 
           icon={<IconDeviceMobile size={20} />} 

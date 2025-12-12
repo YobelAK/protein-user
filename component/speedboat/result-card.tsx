@@ -1,3 +1,4 @@
+"use client";
 import React from 'react';
 import Link from 'next/link';
 import { 
@@ -15,8 +16,10 @@ import {
 export interface ResultCardProps {
   id?: string | number;
   provider: string;
+  vendorName?: string;
   logo: string;
   departureTime: string;
+  departureDate?: string;
   arrivalTime: string;
   duration: string;
   origin: string;
@@ -31,25 +34,109 @@ export interface ResultCardProps {
       child: number;
     };
   };
+  capacity?: number;
+  available?: number;
+  requestedPassengers?: number;
 }
 
 export function ResultCard({
   id,
   provider,
+  vendorName,
   logo,
   departureTime,
   arrivalTime,
+  departureDate,
   duration,
   origin,
   destination,
-  prices
+  prices,
+  capacity,
+  available,
+  requestedPassengers
 }: ResultCardProps) {
   const formatPrice = (price: number) => {
     return `Rp ${price.toLocaleString('id-ID')}`;
   };
 
   const priceIdr = prices.indonesian.adult;
-  const href = `/speedboat/book?sid=${encodeURIComponent(String(id ?? ''))}&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&departure=${encodeURIComponent(departureTime)}&provider=${encodeURIComponent(provider)}&priceIdr=${encodeURIComponent(String(priceIdr))}`;
+  const href = `/speedboat/book?sid=${encodeURIComponent(String(id ?? ''))}&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&departureTime=${encodeURIComponent(departureTime)}&departureDate=${encodeURIComponent(String(departureDate ?? ''))}&provider=${encodeURIComponent(provider)}&priceIdr=${encodeURIComponent(String(priceIdr))}`;
+  const canBook = (Number(available ?? 0) > 0) && ((requestedPassengers ?? 1) <= Number(available ?? 0));
+  const logoSrc = logo && String(logo).trim() ? logo : 'https://via.placeholder.com/60';
+
+  const handleBookClick = () => {
+    try {
+      const search = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+      const ret = search.get('return') || '';
+      const fromId = search.get('from') || '';
+      const toId = search.get('to') || '';
+      const passengers = search.get('passengers') || String(requestedPassengers ?? 1);
+      const existingRaw = typeof window !== 'undefined' ? (localStorage.getItem('rt_outbound_selected') || '') : '';
+
+      const hasReturn = !!ret;
+      if (!hasReturn) {
+        try { localStorage.removeItem('rt_outbound_selected'); } catch {}
+        try { localStorage.removeItem('rt_passengers'); } catch {}
+        window.location.href = href;
+        return;
+      }
+
+      if (existingRaw) {
+        let out: any = null;
+        try { out = JSON.parse(existingRaw); } catch {}
+        const currentFrom = search.get('from') || '';
+        const currentTo = search.get('to') || '';
+        if (out && currentFrom && currentTo && currentFrom === String(out.from || '') && currentTo === String(out.to || '')) {
+          const retDate = ret;
+          const pax = passengers;
+          const params = new URLSearchParams();
+          if (out.to) params.set('from', String(out.to));
+          if (out.from) params.set('to', String(out.from));
+          if (retDate) params.set('departure', retDate);
+          if (retDate) params.set('return', retDate);
+          if (pax) params.set('passengers', String(pax));
+          window.location.href = `/speedboat?${params.toString()}`;
+          return;
+        }
+
+        const inbound = {
+          sid: String(id ?? ''),
+          priceIdr: priceIdr,
+          origin,
+          destination,
+          departureTime,
+          departureDate: String(departureDate ?? ''),
+          provider,
+        };
+        try { localStorage.setItem('rt_inbound_selected', JSON.stringify(inbound)); } catch {}
+        try { if (typeof window !== 'undefined') { window.dispatchEvent(new CustomEvent('rt_inbound_selected')); } } catch {}
+        return;
+      }
+
+      const outbound = {
+        sid: String(id ?? ''),
+        priceIdr: priceIdr,
+        from: fromId,
+        to: toId,
+        origin,
+        destination,
+        departureTime,
+        departureDate: String(departureDate ?? ''),
+        provider,
+      };
+      try { localStorage.setItem('rt_outbound_selected', JSON.stringify(outbound)); } catch {}
+      try { localStorage.setItem('rt_passengers', String(passengers)); } catch {}
+      const params = new URLSearchParams();
+      if (toId) params.set('from', toId);
+      if (fromId) params.set('to', fromId);
+      if (ret) params.set('departure', ret);
+      if (ret) params.set('return', ret);
+      if (passengers) params.set('passengers', String(passengers));
+      window.location.href = `/speedboat?${params.toString()}`;
+    } catch {
+      window.location.href = href;
+    }
+  };
 
   return (
     <Card 
@@ -65,7 +152,7 @@ export function ResultCard({
     >
       <Group align="flex-start" gap="xl">
         <Avatar
-          src={logo}
+          src={logoSrc}
           alt={provider}
           size={64}
           style={{
@@ -78,6 +165,9 @@ export function ResultCard({
           <Text fw={600} size="lg" c="dark">
             {provider}
           </Text>
+          {vendorName ? (
+            <Text size="sm" c="dimmed">{vendorName}</Text>
+          ) : null}
           
           <Group gap="xl" align="center">
             <Stack gap="xs" align="center">
@@ -136,6 +226,10 @@ export function ResultCard({
           }}
           c="dark"
         >
+          <Group justify="space-between" mb="sm">
+            <Text size="sm" c="#000000">Capacity: {typeof capacity === 'number' ? capacity : '-'}</Text>
+            <Text size="sm" c="#000000">Available: {typeof available === 'number' ? available : '-'}</Text>
+          </Group>
           <Table
             styles={{
               th: {
@@ -175,7 +269,7 @@ export function ResultCard({
           
           <Divider my="md" />
           
-          <Link href={href}>
+          {canBook ? (
             <Button
               fullWidth
               color="#284361"
@@ -185,10 +279,24 @@ export function ResultCard({
                 backgroundColor: '#284361',
                 ':hover': { backgroundColor: '#0075ff' }
               }}
+              onClick={handleBookClick}
             >
               Book Now
             </Button>
-          </Link>
+          ) : (
+            <Button
+              fullWidth
+              color="gray"
+              variant="filled"
+              fw={600}
+              disabled
+              style={{
+                backgroundColor: '#d1d5db'
+              }}
+            >
+              Unavailable
+            </Button>
+          )}
         </Box>
       </Group>
     </Card>

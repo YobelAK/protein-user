@@ -344,6 +344,7 @@ model FastboatSchedule {
 model Route {
   id        String   @id @default(uuid())
   name      String   @unique
+  image     String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

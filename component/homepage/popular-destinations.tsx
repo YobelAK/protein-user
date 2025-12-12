@@ -1,4 +1,5 @@
-import React from 'react';
+'use client';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Container,
@@ -13,49 +14,48 @@ import {
   Group,
   Stack,
   Badge,
-  ActionIcon
+  ActionIcon,
+  Transition
 } from '@mantine/core';
 import { IconArrowRight, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
-
-const destinations = [
-  {
-    id: 1,
-    title: 'Sanur ➔ Nusa Penida',
-    type: 'Speedboat',
-    price: 'Rp 750,000',
-    image: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800&q=80'
-  },
-  {
-    id: 2,
-    title: 'Nusa Penida Full Day Tour',
-    type: 'Tour Package',
-    price: 'Rp 850,000',
-    image: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=800&q=80'
-  },
-  {
-    id: 3,
-    title: 'Sanur ➔ Lembongan',
-    type: 'Speedboat',
-    price: 'Rp 300,000',
-    image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&q=80'
-  },
-  {
-    id: 4,
-    title: 'Crystal Bay Snorkeling',
-    type: 'Watersport',
-    price: 'Rp 450,000',
-    image: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=800&q=80'
-  },
-  // {
-  //   id: 5,
-  //   title: 'Uluwatu Temple Tour',
-  //   type: 'Tour Package',
-  //   price: 'Rp 500,000',
-  //   image: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800&q=80'
-  // }
-];
+import Link from 'next/link';
+type DestinationCard = { id: string; title: string; type: string; priceIdr: number; image?: string | null; depId: string; arrId: string; date: string };
 
 export function PopularDestinations() {
+  const [destinations, setDestinations] = useState<DestinationCard[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [mounted, setMounted] = useState(true);
+  const [anim, setAnim] = useState<'slide-left' | 'slide-right'>('slide-right');
+  const pendingOffset = React.useRef<number | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/bookings?topFastboatRoutes=1', { cache: 'no-store' });
+        const data = await res.json();
+        const list: DestinationCard[] = Array.isArray(data?.destinations) ? data.destinations.map((d: any) => ({
+          id: String(d.id || ''),
+          title: String(d.title || ''),
+          type: 'Speedboat',
+          priceIdr: Number(d.priceIdr || 0),
+          image: d.image || null,
+          depId: String(d.depId || ''),
+          arrId: String(d.arrId || ''),
+          date: String(d.date || ''),
+        })) : [];
+        if (mounted) setDestinations(list);
+      } catch {}
+    })();
+    return () => { mounted = false };
+  }, []);
+
+  const visible = destinations.slice(offset, Math.min(offset + 4, destinations.length));
+
+  function formatIdr(n: number) {
+    try { return `Rp ${new Intl.NumberFormat('id-ID').format(Math.round(n))}` } catch { return `Rp ${n}` }
+  }
+
   return (
     <Box style={{ backgroundColor: '#f8f9fa', padding: '8px 0' }}>
       <Container size="xl" style={{ padding: '64px 16px' }}>
@@ -72,82 +72,110 @@ export function PopularDestinations() {
             <ActionIcon 
               variant="outline" 
               size="lg"
-              style={{ borderColor: '#dee2e6' }}
+              style={{ borderColor: '#dee2e6', backgroundColor: 'white' }}
+              onClick={() => {
+                if (offset <= 0 || !mounted) return;
+                setAnim('slide-right');
+                pendingOffset.current = Math.max(0, offset - 1);
+                setMounted(false);
+              }}
+              disabled={offset <= 0 || !mounted}
             >
               <IconChevronLeft size={20} />
             </ActionIcon>
             <ActionIcon 
               variant="outline" 
               size="lg"
-              style={{ borderColor: '#dee2e6' }}
+              style={{ borderColor: '#dee2e6', backgroundColor: 'white' }}
+              onClick={() => {
+                const maxOffset = Math.max(0, destinations.length - 4);
+                if (destinations.length <= 4 || offset >= maxOffset || !mounted) return;
+                setAnim('slide-left');
+                pendingOffset.current = Math.min(maxOffset, offset + 1);
+                setMounted(false);
+              }}
+              disabled={destinations.length <= 4 || offset >= Math.max(0, destinations.length - 4) || !mounted}
             >
               <IconChevronRight size={20} />
             </ActionIcon>
           </Group>
         </Group>
-        
-        <Grid>
-          {destinations.map((destination) => (
-            <GridCol key={destination.id} span={{ base: 12, md: 6, lg: 3 }}>
-              <Card 
-                shadow="md" 
-                radius="xl" 
-                bg="white"
-                style={{ 
-                  overflow: 'hidden',
-                  transition: 'box-shadow 0.3s ease',
-                  ':hover': { boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }
-                }}
-              >
-                <CardSection style={{ position: 'relative', height: '224px' }}>
-                  <Image
-                    src={destination.image}
-                    alt={destination.title}
-                    h={224}
-                    style={{ objectFit: 'cover' }}
-                  />
-                  <Badge
-                    style={{
-                      position: 'absolute',
-                      top: '16px',
-                      left: '16px',
-                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                      backdropFilter: 'blur(4px)',
-                      color: '#284361'
-                    }}
-                    size="md"
-                    fw={600}
-                  >
-                    {destination.type}
-                  </Badge>
-                </CardSection>
-                
-                <Stack gap="md" p="md">
-                  <Title order={3} size="lg" fw={700}>
-                    {destination.title}
-                  </Title>
-                  <Group justify="space-between" align="flex-end">
-                    <Stack gap={2}>
-                      <Text size="sm" c="dimmed">From</Text>
-                      <Text fw={700} size="lg" c="#284361">
-                        {destination.price}
-                      </Text>
-                    </Stack>
-                    <Button
-                      style={{
-                        backgroundColor: '#284361',
-                        ':hover': { backgroundColor: '#1e3149' }
+        <Transition mounted={mounted} transition={anim} duration={300} exitDuration={220} onExited={() => {
+          if (pendingOffset.current != null) {
+            setOffset(pendingOffset.current);
+            pendingOffset.current = null;
+            setMounted(true);
+          }
+        }}>
+          {(styles: React.CSSProperties) => (
+            <Box style={{ ...styles }}>
+              <Grid>
+                {visible.map((destination) => (
+                  <GridCol key={destination.id} span={{ base: 12, md: 6, lg: 3 }}>
+                    <Card 
+                      shadow="md" 
+                      radius="xl" 
+                      bg="white"
+                      style={{ 
+                        overflow: 'hidden',
+                        transition: 'box-shadow 0.3s ease',
+                        ':hover': { boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }
                       }}
-                      fw={600}
                     >
-                      View Details
-                    </Button>
-                  </Group>
-                </Stack>
-              </Card>
-            </GridCol>
-          ))}
-        </Grid>
+                      <CardSection style={{ position: 'relative', height: '224px' }}>
+                        <Image
+                          src={destination.image || ''}
+                          alt={destination.title}
+                          h={224}
+                          style={{ objectFit: 'cover' }}
+                        />
+                        <Badge
+                          style={{
+                            position: 'absolute',
+                            top: '16px',
+                            left: '16px',
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                            backdropFilter: 'blur(4px)',
+                            color: '#284361'
+                          }}
+                          size="md"
+                          fw={600}
+                        >
+                          {destination.type}
+                        </Badge>
+                      </CardSection>
+                      
+                      <Stack gap="md" p="md">
+                        <Title order={3} size="lg" fw={700}>
+                          {destination.title}
+                        </Title>
+                        <Group justify="space-between" align="flex-end">
+                          <Stack gap={2}>
+                            <Text size="sm" c="dimmed">From</Text>
+                            <Text fw={700} size="lg" c="#284361">
+                              {formatIdr(destination.priceIdr)}
+                            </Text>
+                          </Stack>
+                          <Button
+                            component={Link}
+                            href={`/speedboat?from=${encodeURIComponent(destination.depId)}&to=${encodeURIComponent(destination.arrId)}&departure=${encodeURIComponent(destination.date)}`}
+                            style={{
+                              backgroundColor: '#284361',
+                              ':hover': { backgroundColor: '#1e3149' }
+                            }}
+                            fw={600}
+                          >
+                            View Details
+                          </Button>
+                        </Group>
+                      </Stack>
+                    </Card>
+                  </GridCol>
+                ))}
+              </Grid>
+            </Box>
+          )}
+        </Transition>
       </Container>
     </Box>
   );

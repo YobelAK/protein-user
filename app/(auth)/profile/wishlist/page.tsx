@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Box, Text, SimpleGrid } from '@mantine/core';
+import React, { useEffect, useState } from 'react';
+import { Box, Text, SimpleGrid, Container } from '@mantine/core';
 import { Header } from '@/components/layout/header';
 // import { Sidebar } from '@/components/profile/Sidebar';
 import { ExperienceCard } from '@/components/profile/ExperienceCard';
+import { supabase } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
 export default function Page() {
   const [experiences, setExperiences] = useState([
@@ -39,11 +41,22 @@ export default function Page() {
     setExperiences((prev) => prev.filter((exp) => exp.id !== id));
   };
 
+  const router = useRouter();
+  useEffect(() => {
+    const check = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.replace('/login?redirectTo=/profile/wishlist');
+      }
+    };
+    check();
+  }, []);
+
   return (
     <Box style={{ width: '100%', minHeight: '100vh', backgroundColor: '#ffffff' }}>
       <Header />
-      <Box component="main" style={{ padding: 32 }}>
-        <Box>
+      <Box component="main">
+        <Container size="xl" py="xl">
           <Text style={{ fontSize: 30, fontWeight: 700, color: '#284361', marginBottom: 8 }}>
             Wishlist
           </Text>
@@ -67,7 +80,7 @@ export default function Page() {
               />
             ))}
           </SimpleGrid>
-        </Box>
+        </Container>
       </Box>
     </Box>
   );

@@ -15,6 +15,16 @@ export default function AuthRegisterPage() {
   const [agree, setAgree] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const createInitialSvg = (letter: string) => {
+    const L = (letter || 'N').slice(0, 1).toUpperCase();
+    return `<?xml version="1.0" encoding="UTF-8"?>\n` +
+      `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">` +
+      `<defs><style>@font-face{font-family:Inter;src:local('Inter');font-weight:700}</style></defs>` +
+      `<rect width="256" height="256" rx="128" fill="#284361"/>` +
+      `<text x="50%" y="50%" dy="12" text-anchor="middle" fill="#ffffff" font-size="120" font-weight="700" font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto">${L}</text>` +
+      `</svg>`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -22,11 +32,39 @@ export default function AuthRegisterPage() {
       setError('Anda harus menyetujui syarat & ketentuan');
       return;
     }
-    const { data, error: err } = await supabase.auth.signUp({ email, password });
-    if (err) {
-      setError(err.message || 'Registrasi gagal');
+    const normalizedEmail = (email || '').trim().toLowerCase().replace(/[\u200B-\u200D\uFEFF]/g, '');
+    const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      setError(`Email address "${email}" is invalid`);
       return;
     }
+    const { data, error: err } = await supabase.auth.signUp({ email: normalizedEmail, password });
+    if (err) {
+      const msg = String(err.message || 'Registrasi gagal');
+      if (/exist|already/i.test(msg)) {
+        setError('Email sudah terdaftar');
+      } else {
+        setError(msg);
+      }
+      return;
+    }
+
+    try {
+      const publicId = crypto.randomUUID();
+      const prefix = (normalizedEmail || '').split('@')[0] || '';
+      const svg = createInitialSvg(prefix);
+      const blob = new Blob([svg], { type: 'image/svg+xml' });
+      const bucket = 'avatars';
+      const path = `${publicId}/avatar-initial.svg`;
+      await supabase.storage.from(bucket).upload(path, blob, { upsert: true, contentType: 'image/svg+xml' });
+      const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
+      const avatarUrl = urlData.publicUrl;
+      await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: publicId, email: normalizedEmail, role: 'CUSTOMER', avatarUrl }),
+      });
+    } catch (_) {}
     const redirectTo = searchParams.get('redirectTo') || '/profile';
     router.push(redirectTo);
   };

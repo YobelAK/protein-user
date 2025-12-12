@@ -4,13 +4,16 @@ import React, { useEffect, useState } from 'react';
 import { Box, Paper, Group, Text, Button, Image, Menu, ActionIcon } from '@mantine/core';
 import { FileText, CreditCard, MoreVertical } from 'lucide-react';
 
-type BookingStatus = 'Pending' | 'Booked' | 'Completed' | 'Cancelled';
+type BookingStatus = 'Pending' | 'Booked' | 'Completed' | 'Cancelled'| 'Expired'| 'Refunded';
 
 interface BookingCardProps {
   initials: string;
   title: string;
   location: string;
-  date: string;
+  bookingDate: string;
+  departureDate?: string;
+  departureTime?: string;
+  arrivalTime?: string;
   passengers: number;
   bookingCode: string;
   status: BookingStatus;
@@ -19,13 +22,21 @@ interface BookingCardProps {
   onPayNow?: () => void;
   onCancel?: () => void;
   deadlineAt?: string;
+  onViewDetails?: () => void;
+  onViewTicket?: () => void;
+  onViewInvoice?: () => void;
+  pendingType?: 'payment' | 'refund';
+  onIssueRefund?: () => void;
+  onReview?: () => void;
+  hasReview?: boolean;
+  onViewReview?: () => void;
 }
 
 export function BookingCard({
   initials,
   title,
   location,
-  date,
+  bookingDate,
   passengers,
   bookingCode,
   status,
@@ -34,12 +45,25 @@ export function BookingCard({
   onPayNow,
   onCancel,
   deadlineAt,
+  onViewDetails,
+  onViewTicket,
+  onViewInvoice,
+  pendingType,
+  onIssueRefund,
+  onReview,
+  hasReview,
+  onViewReview,
+  departureDate,
+  departureTime,
+  arrivalTime,
 }: BookingCardProps) {
   const statusStyles: Record<BookingStatus, { bg: string; color: string }> = {
     Pending: { bg: '#e0f2fe', color: '#075985' },
     Booked: { bg: '#fef9c3', color: '#854d0e' },
     Completed: { bg: '#bbf7d0', color: '#166534' },
     Cancelled: { bg: '#fee2e2', color: '#991b1b' },
+    Expired: { bg: '#fee2e2', color: '#991b1b' },
+    Refunded: { bg: '#e0f2fe', color: '#075985' },
   };
 
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -71,18 +95,24 @@ export function BookingCard({
           <Group gap={16}>
             <Text c="#284361" fw={700}>Booking</Text>
             <Text c="#6b7280">Code: <Text span c="#284361" fw={600}>{bookingCode}</Text></Text>
-            <Text c="#6b7280">Date: <Text span c="#284361" fw={600}>{date}</Text></Text>
+            <Text c="#6b7280">Booking Date: <Text span c="#284361" fw={600}>{bookingDate}</Text></Text>
           </Group>
           <Menu position="bottom-end" shadow="md">
-            <Menu.Target>
-              <ActionIcon variant="outline" radius="md" size={36} style={{ borderColor: '#284361', color: '#284361' }}>
-                <MoreVertical size={18} />
-              </ActionIcon>
-            </Menu.Target>
+          <Menu.Target>
+            <ActionIcon variant="outline" radius="md" size={36} style={{ borderColor: '#284361', color: '#284361' }}>
+              <MoreVertical size={18} />
+            </ActionIcon>
+          </Menu.Target>
           <Menu.Dropdown>
-            <Menu.Item>Lihat Detail</Menu.Item>
-            {(status === 'Pending' || status === 'Booked') && (
-              <Menu.Item onClick={onCancel}>Batal</Menu.Item>
+            {onViewDetails && <Menu.Item onClick={onViewDetails}>View Details</Menu.Item>}
+            {(status === 'Booked') && onViewInvoice && (
+              <Menu.Item onClick={onViewInvoice}>View Invoice</Menu.Item>
+            )}
+            {(status === 'Booked') && onIssueRefund && (
+              <Menu.Item onClick={onIssueRefund}>Issue Refund</Menu.Item>
+            )}
+            {(status === 'Completed') && hasReview && onViewReview && (
+              <Menu.Item onClick={onViewReview}>View Review</Menu.Item>
             )}
           </Menu.Dropdown>
         </Menu>
@@ -116,7 +146,7 @@ export function BookingCard({
               </Group>
             </Box>
           </Group>
-          {status === 'Pending' && (
+          {status === 'Pending' && pendingType === 'payment' && (
             <Box style={{ textAlign: 'right' }}>
               <Text c="#6b7280" size="sm">Payment deadline</Text>
               <Text c="#ef4444" fw={700}>{(() => {
@@ -127,6 +157,20 @@ export function BookingCard({
               })()}</Text>
             </Box>
           )}
+          <Box style={{ textAlign: 'right' }}>
+            <Group justify="space-between" align="center">
+              <Text c="#6b7280" size="sm">Departure Date</Text>
+              <Text fw={600} c="#284361">{departureDate || '—'}</Text>
+            </Group>
+            <Group justify="space-between" align="center">
+              <Text c="#6b7280" size="sm">Departure Time</Text>
+              <Text fw={600} c="#284361">{departureTime || '—'}</Text>
+            </Group>
+            <Group justify="space-between" align="center">
+              <Text c="#6b7280" size="sm">Arrival Time</Text>
+              <Text fw={600} c="#284361">{arrivalTime || '—'}</Text>
+            </Group>
+          </Box>
         </Group>
 
         <Group justify="space-between" align="center">
@@ -142,14 +186,15 @@ export function BookingCard({
                 fontWeight: 600,
               }}
             >
-              {status}
+              {(status === 'Pending' && pendingType) ? (pendingType === 'payment' ? 'Pending Payment' : 'Issue Refund') : status}
             </Box>
-            {status === 'Pending' && (
+            {status === 'Pending' && pendingType === 'payment' && (
               <Button
                 leftSection={<CreditCard size={16} />}
                 style={{ backgroundColor: '#284361' }}
                 styles={{ root: { borderRadius: 8 } }}
                 onClick={onPayNow}
+                disabled={timeLeft === 0}
               >
                 Pay Now
               </Button>
@@ -159,8 +204,19 @@ export function BookingCard({
                 leftSection={<FileText size={16} />}
                 style={{ backgroundColor: '#284361' }}
                 styles={{ root: { borderRadius: 8 } }}
+                onClick={onViewTicket}
               >
                 View E-Ticket
+              </Button>
+            )}
+            {status === 'Completed' && onReview && (
+              <Button
+                style={{ backgroundColor: '#284361' }}
+                styles={{ root: { borderRadius: 8 } }}
+                onClick={onReview}
+                disabled={!!hasReview}
+              >
+                Review
               </Button>
             )}
           </Group>

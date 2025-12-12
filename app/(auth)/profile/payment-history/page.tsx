@@ -1,19 +1,32 @@
 "use client";
-import React, { useState } from 'react';
-import { Box, Text, Group } from '@mantine/core';
+import React, { useEffect, useState } from 'react';
+import { Box, Text, Group, Container } from '@mantine/core';
 import { Header } from '@/components/layout/header';
 // import { Sidebar } from '@/components/profile/Sidebar';
 import { DateFilter } from '@/components/profile/DateFilter';
 import { TransactionTable } from '@/components/profile/TransactionTable';
+import { supabase } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
 export default function Page() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const router = useRouter();
+
+  useEffect(() => {
+    const check = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.replace('/login?redirectTo=/profile/payment-history');
+      }
+    };
+    check();
+  }, []);
   return (
     <Box style={{ width: '100%', minHeight: '100vh', backgroundColor: '#ffffff' }}>
       <Header />
-      <Box component="main" style={{ padding: 32 }}>
-        <Box>
+      <Box component="main">
+        <Container size="xl" py="xl">
           <Group justify="space-between" align="flex-start" mb={24}>
             <Box>
               <Text style={{ fontSize: 30, fontWeight: 700, color: '#284361', marginBottom: 8 }}>
@@ -32,7 +45,7 @@ export default function Page() {
           </Group>
 
           <TransactionTable fromDate={fromDate} toDate={toDate} />
-        </Box>
+        </Container>
       </Box>
     </Box>
   );

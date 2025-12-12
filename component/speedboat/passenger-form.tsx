@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Paper, Title, Grid, Select, TextInput, Checkbox, Text, Group, Stack, Box } from '@mantine/core';
+import { Paper, Title, Grid, Select, TextInput, Checkbox, Text, Group, Stack, Box, Autocomplete } from '@mantine/core';
 import { IconChevronDown } from '@tabler/icons-react';
+import { supabase } from '@/lib/supabase/client';
 
 type Passenger = {
   id: number;
@@ -38,6 +39,7 @@ export function PassengerForm({ guestCount, onChange, mainContactName }: Passeng
   });
 
   const [passengers, setPassengers] = useState<Passenger[]>(Array.from({ length: Math.max(1, guestCount) }, (_, i) => createDefaultPassenger(i)));
+  const [savedTravelers, setSavedTravelers] = useState<Array<{ id?: string; title?: string; firstName: string; lastName: string; nationality: string; identityType?: string; idNumber?: string; nationalId?: string; ageCategory?: string; age?: number }>>([]);
 
   useEffect(() => {
     const count = Math.max(1, guestCount);
@@ -70,6 +72,43 @@ export function PassengerForm({ guestCount, onChange, mainContactName }: Passeng
     });
   }, [mainContactName]);
 
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const uidKey = (session.user.id || (session.user.email || '').trim().toLowerCase());
+          let arr: any = (session.user as any).user_metadata?.savedTravelers || [];
+          if (!Array.isArray(arr) || arr.length === 0) {
+            try {
+              const raw = typeof window !== 'undefined' ? localStorage.getItem(`saved_travelers:${uidKey}`) || '' : '';
+              arr = raw ? JSON.parse(raw) : [];
+            } catch { arr = []; }
+          }
+          if (Array.isArray(arr)) {
+            setSavedTravelers(arr.map((t: any) => ({
+              id: t?.id,
+              title: String(t?.title || 'Mr'),
+              firstName: String(t?.firstName || ''),
+              lastName: String(t?.lastName || ''),
+              nationality: String(t?.nationality || 'Indonesia'),
+              identityType: String(t?.identityType || 'KTP'),
+              idNumber: String(t?.idNumber || t?.nationalId || ''),
+              nationalId: String(t?.nationalId || ''),
+              ageCategory: String(t?.ageCategory || (typeof t?.age === 'number' ? (t.age >= 12 ? 'Adult' : t.age >= 2 ? 'Child' : 'Infant') : 'Adult')),
+              age: typeof t?.age === 'number' ? t.age : undefined,
+            })));
+          } else {
+            setSavedTravelers([]);
+          }
+        } else {
+          setSavedTravelers([]);
+        }
+      } catch {}
+    };
+    load();
+  }, []);
+
   const handleChange = <K extends PassengerField>(id: number, field: K, value: Passenger[K]) => {
     setPassengers((prev) => prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
   };
@@ -91,161 +130,188 @@ export function PassengerForm({ guestCount, onChange, mainContactName }: Passeng
 
             <Grid gutter="md">
               <Grid.Col span={{ base: 12, md: 3 }}>
-                <Select
-                  label="Title"
-                  data={["Mr", "Mrs", "Ms"]}
-                  value={passenger.title}
-                  onChange={(value) => value && handleChange(passenger.id, 'title', value)}
-                  size="sm"
-                  rightSection={<IconChevronDown size={12} />}
-                  styles={{
-                    input: {
-                      fontSize: '14px',
-                      color: '#1a1a1a',
-                      backgroundColor: 'white',
-                      borderColor: '#d1d5db',
-                      '&:focus': {
-                        borderColor: '#284361',
-                        boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
-                      }
+              <Select
+                label="Title"
+                data={["Mr", "Mrs", "Ms"]}
+                value={passenger.title}
+                onChange={(value) => value && handleChange(passenger.id, 'title', value)}
+                size="sm"
+                rightSection={<IconChevronDown size={12} />}
+                required
+                styles={{
+                  input: {
+                    fontSize: '14px',
+                    color: '#1a1a1a',
+                    backgroundColor: 'white',
+                    borderColor: '#d1d5db',
+                    '&:focus': {
+                      borderColor: '#284361',
+                      boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
                     }
-                  }}
-                />
+                  }
+                }}
+              />
               </Grid.Col>
 
               <Grid.Col span={{ base: 12, md: 3 }}>
-                <TextInput
-                  label="First Name"
-                  placeholder="First name"
-                  value={passenger.firstName}
-                  onChange={(e) => handleChange(passenger.id, 'firstName', e.currentTarget.value)}
-                  size="sm"
-                  styles={{
-                    input: {
-                      fontSize: '14px',
-                      color: '#1a1a1a',
-                      backgroundColor: 'white',
-                      borderColor: '#d1d5db',
-                      '&:focus': {
-                        borderColor: '#284361',
-                        boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
-                      }
+              <Autocomplete
+                label="First Name"
+                placeholder="First name"
+                data={savedTravelers.map((t) => t.firstName).filter(Boolean)}
+                value={passenger.firstName}
+                onChange={(val) => handleChange(passenger.id, 'firstName', val)}
+                onOptionSubmit={(val) => {
+                  const t = savedTravelers.find((s) => String(s.firstName || '').toLowerCase() === String(val || '').toLowerCase());
+                  if (t) {
+                    setPassengers((prev) => prev.map((p) => (
+                      p.id === passenger.id
+                        ? {
+                            ...p,
+                            title: t.title ? String(t.title) : p.title,
+                            firstName: t.firstName || '',
+                            lastName: t.lastName || '',
+                            nationality: t.nationality ? String(t.nationality) : p.nationality,
+                            identityType: t.identityType ? String(t.identityType) : p.identityType,
+                            idNumber: t.idNumber || t.nationalId || p.idNumber,
+                            ageCategory: t.ageCategory ? String(t.ageCategory) : (typeof t.age === 'number' ? (t.age >= 12 ? 'Adult' : t.age >= 2 ? 'Child' : 'Infant') : p.ageCategory),
+                          }
+                        : p
+                    )));
+                  }
+                }}
+                size="sm"
+                required
+                styles={{
+                  input: {
+                    fontSize: '14px',
+                    color: '#1a1a1a',
+                    backgroundColor: 'white',
+                    borderColor: '#d1d5db',
+                    '&:focus': {
+                      borderColor: '#284361',
+                      boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
                     }
-                  }}
-                />
+                  }
+                }}
+              />
               </Grid.Col>
 
               <Grid.Col span={{ base: 12, md: 3 }}>
-                <TextInput
-                  label="Last Name"
-                  placeholder="Last name"
-                  value={passenger.lastName}
-                  onChange={(e) => handleChange(passenger.id, 'lastName', e.currentTarget.value)}
-                  size="sm"
-                  styles={{
-                    input: {
-                      fontSize: '14px',
-                      color: '#1a1a1a',
-                      backgroundColor: 'white',
-                      borderColor: '#d1d5db',
-                      '&:focus': {
-                        borderColor: '#284361',
-                        boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
-                      }
+              <TextInput
+                label="Last Name"
+                placeholder="Last name"
+                value={passenger.lastName}
+                onChange={(e) => handleChange(passenger.id, 'lastName', e.currentTarget.value)}
+                size="sm"
+                required
+                styles={{
+                  input: {
+                    fontSize: '14px',
+                    color: '#1a1a1a',
+                    backgroundColor: 'white',
+                    borderColor: '#d1d5db',
+                    '&:focus': {
+                      borderColor: '#284361',
+                      boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
                     }
-                  }}
-                />
+                  }
+                }}
+              />
               </Grid.Col>
 
               <Grid.Col span={{ base: 12, md: 3 }}>
-                <Select
-                  label="Nationality"
-                  data={["Indonesia", "Malaysia", "Singapore"]}
-                  value={passenger.nationality}
-                  onChange={(value) => value && handleChange(passenger.id, 'nationality', value)}
-                  size="sm"
-                  rightSection={<IconChevronDown size={12} />}
-                  styles={{
-                    input: {
-                      fontSize: '14px',
-                      color: '#1a1a1a',
-                      backgroundColor: 'white',
-                      borderColor: '#d1d5db',
-                      '&:focus': {
-                        borderColor: '#284361',
-                        boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
-                      }
+              <Select
+                label="Nationality"
+                data={["Indonesia", "Malaysia", "Singapore"]}
+                value={passenger.nationality}
+                onChange={(value) => value && handleChange(passenger.id, 'nationality', value)}
+                size="sm"
+                rightSection={<IconChevronDown size={12} />}
+                required
+                styles={{
+                  input: {
+                    fontSize: '14px',
+                    color: '#1a1a1a',
+                    backgroundColor: 'white',
+                    borderColor: '#d1d5db',
+                    '&:focus': {
+                      borderColor: '#284361',
+                      boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
                     }
-                  }}
-                />
+                  }
+                }}
+              />
               </Grid.Col>
 
               <Grid.Col span={{ base: 12, md: 3 }}>
-                <Select
-                  label="Identity Type"
-                  data={["KTP", "Passport", "SIM"]}
-                  value={passenger.identityType}
-                  onChange={(value) => value && handleChange(passenger.id, 'identityType', value)}
-                  size="sm"
-                  rightSection={<IconChevronDown size={12} />}
-                  styles={{
-                    input: {
-                      fontSize: '14px',
-                      color: '#1a1a1a',
-                      backgroundColor: 'white',
-                      borderColor: '#d1d5db',
-                      '&:focus': {
-                        borderColor: '#284361',
-                        boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
-                      }
+              <Select
+                label="Identity Type"
+                data={["KTP", "Passport", "SIM"]}
+                value={passenger.identityType}
+                onChange={(value) => value && handleChange(passenger.id, 'identityType', value)}
+                size="sm"
+                rightSection={<IconChevronDown size={12} />}
+                required
+                styles={{
+                  input: {
+                    fontSize: '14px',
+                    color: '#1a1a1a',
+                    backgroundColor: 'white',
+                    borderColor: '#d1d5db',
+                    '&:focus': {
+                      borderColor: '#284361',
+                      boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
                     }
-                  }}
-                />
+                  }
+                }}
+              />
               </Grid.Col>
 
               <Grid.Col span={{ base: 12, md: 6 }}>
-                <TextInput
-                  label="ID Number"
-                  placeholder="ID number"
-                  value={passenger.idNumber}
-                  onChange={(e) => handleChange(passenger.id, 'idNumber', e.currentTarget.value)}
-                  size="sm"
-                  styles={{
-                    input: {
-                      fontSize: '14px',
-                      color: '#1a1a1a',
-                      backgroundColor: 'white',
-                      borderColor: '#d1d5db',
-                      '&:focus': {
-                        borderColor: '#284361',
-                        boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
-                      }
+              <TextInput
+                label="ID Number"
+                placeholder="ID number"
+                value={passenger.idNumber}
+                onChange={(e) => handleChange(passenger.id, 'idNumber', e.currentTarget.value)}
+                size="sm"
+                required
+                styles={{
+                  input: {
+                    fontSize: '14px',
+                    color: '#1a1a1a',
+                    backgroundColor: 'white',
+                    borderColor: '#d1d5db',
+                    '&:focus': {
+                      borderColor: '#284361',
+                      boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
                     }
-                  }}
-                />
+                  }
+                }}
+              />
               </Grid.Col>
 
               <Grid.Col span={{ base: 12, md: 3 }}>
-                <Select
-                  label="Age Category"
-                  data={["Adult", "Child", "Infant"]}
-                  value={passenger.ageCategory}
-                  onChange={(value) => value && handleChange(passenger.id, 'ageCategory', value)}
-                  size="sm"
-                  rightSection={<IconChevronDown size={12} />}
-                  styles={{
-                    input: {
-                      fontSize: '14px',
-                      color: '#1a1a1a',
-                      backgroundColor: 'white',
-                      borderColor: '#d1d5db',
-                      '&:focus': {
-                        borderColor: '#284361',
-                        boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
-                      }
+              <Select
+                label="Age Category"
+                data={["Adult", "Child", "Infant"]}
+                value={passenger.ageCategory}
+                onChange={(value) => value && handleChange(passenger.id, 'ageCategory', value)}
+                size="sm"
+                rightSection={<IconChevronDown size={12} />}
+                required
+                styles={{
+                  input: {
+                    fontSize: '14px',
+                    color: '#1a1a1a',
+                    backgroundColor: 'white',
+                    borderColor: '#d1d5db',
+                    '&:focus': {
+                      borderColor: '#284361',
+                      boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
                     }
-                  }}
-                />
+                  }
+                }}
+              />
               </Grid.Col>
             </Grid>
 
@@ -262,6 +328,8 @@ export function PassengerForm({ guestCount, onChange, mainContactName }: Passeng
                     const first = parts[0] || '';
                     const last = parts.slice(1).join(' ') || '';
                     setPassengers((prev) => prev.map((p) => (p.id === passenger.id ? { ...p, firstName: first, lastName: last } : p)));
+                  } else {
+                    setPassengers((prev) => prev.map((p) => (p.id === passenger.id ? { ...p, firstName: '', lastName: '' } : p)));
                   }
                 }}
                 style={{ marginTop: 16 }}

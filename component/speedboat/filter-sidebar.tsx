@@ -1,7 +1,20 @@
+"use client";
+
 import React from 'react';
 import { Paper, Stack, Title, Text, Checkbox, Radio, RadioGroup, Button } from '@mantine/core';
 
-export function FilterSidebar() {
+type Props = {
+  providers: string[];
+  selectedProviders: string[];
+  onToggleProvider: (name: string) => void;
+  selectedWindows: Array<'morning' | 'afternoon' | 'evening'>;
+  onToggleWindow: (win: 'morning' | 'afternoon' | 'evening') => void;
+  sortBy: 'lower-price' | 'earliest-departure' | 'latest-departure' | null;
+  onToggleSort: (value: 'lower-price' | 'earliest-departure' | 'latest-departure' | null) => void;
+  onApply: () => void;
+};
+
+export function FilterSidebar({ providers, selectedProviders, onToggleProvider, selectedWindows, onToggleWindow, sortBy, onToggleSort, onApply }: Props) {
   return (
     <aside style={{ width: '256px', flexShrink: 0 }}>
       <Paper 
@@ -25,6 +38,8 @@ export function FilterSidebar() {
             </Text>
             <Stack gap="xs">
               <Checkbox
+                checked={selectedWindows.includes('morning')}
+                onChange={() => onToggleWindow('morning')}
                 label="Morning (00:00 - 12:00)"
                 color="#284361"
                 size="sm"
@@ -33,6 +48,8 @@ export function FilterSidebar() {
                 }}
               />
               <Checkbox
+                checked={selectedWindows.includes('afternoon')}
+                onChange={() => onToggleWindow('afternoon')}
                 label="Afternoon (12:00 - 18:00)"
                 color="#284361"
                 size="sm"
@@ -41,6 +58,8 @@ export function FilterSidebar() {
                 }}
               />
               <Checkbox
+                checked={selectedWindows.includes('evening')}
+                onChange={() => onToggleWindow('evening')}
                 label="Evening (18:00 - 24:00)"
                 color="#284361"
                 size="sm"
@@ -55,13 +74,14 @@ export function FilterSidebar() {
             <Text fw={500} c="#1a1a1a">
               Sort By
             </Text>
-            <RadioGroup name="sort">
+            <RadioGroup name="sort" value={sortBy ?? undefined} onChange={(v: any) => onToggleSort(v || null)}>
               <Stack gap="xs">
                 <Radio
                   value="lower-price"
                   label="Lower Price"
                   color="#284361"
                   size="sm"
+                  onClick={() => onToggleSort(sortBy === 'lower-price' ? null : 'lower-price')}
                   styles={{
                     label: { fontSize: '14px', color: '#1a1a1a' }
                   }}
@@ -71,6 +91,7 @@ export function FilterSidebar() {
                   label="Earliest Departure"
                   color="#284361"
                   size="sm"
+                  onClick={() => onToggleSort(sortBy === 'earliest-departure' ? null : 'earliest-departure')}
                   styles={{
                     label: { fontSize: '14px', color: '#1a1a1a' }
                   }}
@@ -80,6 +101,7 @@ export function FilterSidebar() {
                   label="Latest Departure"
                   color="#284361"
                   size="sm"
+                  onClick={() => onToggleSort(sortBy === 'latest-departure' ? null : 'latest-departure')}
                   styles={{
                     label: { fontSize: '14px', color: '#1a1a1a' }
                   }}
@@ -93,30 +115,19 @@ export function FilterSidebar() {
               Provider
             </Text>
             <Stack gap="xs">
-              <Checkbox
-                label="Caspia Bali"
-                color="#284361"
-                size="sm"
-                styles={{
-                  label: { fontSize: '14px', color: '#1a1a1a' }
-                }}
-              />
-              <Checkbox
-                label="Eka Jaya"
-                color="#284361"
-                size="sm"
-                styles={{
-                  label: { fontSize: '14px', color: '#1a1a1a' }
-                }}
-              />
-              <Checkbox
-                label="The Tanis"
-                color="#284361"
-                size="sm"
-                styles={{
-                  label: { fontSize: '14px', color: '#1a1a1a' }
-                }}
-              />
+              {providers.map((p) => (
+                <Checkbox
+                  key={p}
+                  checked={selectedProviders.includes(p)}
+                  onChange={() => onToggleProvider(p)}
+                  label={p}
+                  color="#284361"
+                  size="sm"
+                  styles={{
+                    label: { fontSize: '14px', color: '#1a1a1a' }
+                  }}
+                />
+              ))}
             </Stack>
           </Stack>
           
@@ -136,6 +147,7 @@ export function FilterSidebar() {
                 }
               }
             }}
+            onClick={onApply}
           >
             Apply Filters
           </Button>

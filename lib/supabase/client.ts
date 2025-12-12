@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 
 const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '') as string;
 const anon = (
@@ -10,10 +10,8 @@ const anon = (
 ) as string;
 
 let client: any;
-if (url && anon) {
-  client = createClient(url, anon, {
-    auth: { persistSession: true, autoRefreshToken: true },
-  });
+if (url && anon && typeof window !== 'undefined') {
+  client = createBrowserClient(url, anon);
 } else {
   const builder = {
     select: () => builder,

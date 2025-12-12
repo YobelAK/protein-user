@@ -8,17 +8,20 @@ interface ContactFormProps {
   guestCount: number;
   onGuestCountChange: (value: number) => void;
   onChange?: (value: {
-    fullName: string;
+    firstName: string;
+    lastName: string;
     email: string;
     countryCode: string;
     phone: string;
     specialRequests?: string;
     agreed?: boolean;
   }) => void;
+  availableUnits?: number;
 }
 
-export function ContactForm({ guestCount, onGuestCountChange, onChange }: ContactFormProps) {
-  const [fullName, setFullName] = useState('');
+export function ContactForm({ guestCount, onGuestCountChange, onChange, availableUnits }: ContactFormProps) {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [countryCode, setCountryCode] = useState('+62');
   const [phone, setPhone] = useState('');
@@ -28,9 +31,9 @@ export function ContactForm({ guestCount, onGuestCountChange, onChange }: Contac
 
   useEffect(() => {
     if (onChange) {
-      onChange({ fullName, email, countryCode, phone, specialRequests, agreed });
+      onChange({ firstName, lastName, email, countryCode, phone, specialRequests, agreed });
     }
-  }, [fullName, email, countryCode, phone, specialRequests, agreed, onChange]);
+  }, [firstName, lastName, email, countryCode, phone, specialRequests, agreed, onChange]);
 
   return (
     <Paper shadow="sm" p="xl" radius="lg" bg="white">
@@ -38,13 +41,35 @@ export function ContactForm({ guestCount, onGuestCountChange, onChange }: Contac
         <Title order={2} size="xl" fw={600} c="dark">Contact Information</Title>
         
         <Grid gutter="xl">
-          <Grid.Col span={{ base: 12, md: 6 }}>
+          <Grid.Col span={{ base: 12, md: 3 }}>
             <TextInput
-              label="Full Name *"
-              placeholder="Enter your full name"
+              label="First Name"
+              placeholder="Enter first name"
               required
-              value={fullName}
-              onChange={(e) => setFullName(e.currentTarget.value)}
+              value={firstName}
+              onChange={(e) => setFirstName(e.currentTarget.value)}
+              styles={{
+                label: { fontSize: '14px', fontWeight: 500, color: '#374151', marginBottom: 8 },
+                input: {
+                  padding: '12px 16px',
+                  backgroundColor: 'white',
+                  color: '#111827',
+                  border: '1px solid #d1d5db',
+                  '&:focus': { 
+                    borderColor: '#284361',
+                    boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
+                  }
+                }
+              }}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, md: 3 }}>
+            <TextInput
+              label="Last Name"
+              placeholder="Enter last name"
+              required
+              value={lastName}
+              onChange={(e) => setLastName(e.currentTarget.value)}
               styles={{
                 label: { fontSize: '14px', fontWeight: 500, color: '#374151', marginBottom: 8 },
                 input: {
@@ -63,7 +88,7 @@ export function ContactForm({ guestCount, onGuestCountChange, onChange }: Contac
           
           <Grid.Col span={{ base: 12, md: 6 }}>
             <TextInput
-              label="Email Address *"
+              label="Email Address"
               type="email"
               placeholder="Enter your email"
               required
@@ -88,7 +113,7 @@ export function ContactForm({ guestCount, onGuestCountChange, onChange }: Contac
           
           <Grid.Col span={{ base: 12, md: 6 }}>
             <Stack gap="xs">
-              <Text size="sm" fw={500} c="#374151">Phone Number *</Text>
+              <Text size="sm" fw={500} c="#374151">Phone Number</Text>
               <Group gap="sm">
                 <Select
                   data={[
@@ -116,6 +141,7 @@ export function ContactForm({ guestCount, onGuestCountChange, onChange }: Contac
                 />
                 <TextInput
                   placeholder="Enter phone number"
+                  required
                   style={{ flex: 1 }}
                   value={phone}
                   onChange={(e) => setPhone(e.currentTarget.value)}
@@ -140,8 +166,14 @@ export function ContactForm({ guestCount, onGuestCountChange, onChange }: Contac
             <NumberInput
               label="Number of Passengers"
               min={1}
+              max={typeof availableUnits === 'number' ? availableUnits : undefined}
               value={guestCount}
-              onChange={(value) => onGuestCountChange(typeof value === 'number' ? value : 1)}
+              onChange={(value) => {
+                const v = typeof value === 'number' ? value : 1;
+                const max = typeof availableUnits === 'number' ? availableUnits : undefined;
+                const next = max != null ? Math.min(Math.max(1, v), max) : Math.max(1, v);
+                onGuestCountChange(next);
+              }}
               styles={{
                 label: { fontSize: '14px', fontWeight: 500, color: '#374151', marginBottom: 8 },
                 input: {

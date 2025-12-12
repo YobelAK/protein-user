@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Paper, Stack, Title, Text, Group, Table, SimpleGrid, Image, Button, TextInput } from '@mantine/core';
-import { IconAnchor, IconCalendar, IconClock, IconTicket } from '@tabler/icons-react';
+import { IconAnchor, IconCalendar, IconClock, IconTicket, IconBriefcase } from '@tabler/icons-react';
 
 interface BookingReviewProps {
   promoCode: string;
@@ -15,6 +15,38 @@ export function BookingReview({
   setPromoCode,
   booking
 }: BookingReviewProps) {
+  function splitName(full?: string) {
+    const parts = String(full || '').trim().split(/\s+/).filter(Boolean);
+    return { first: parts[0] || '', last: parts.slice(1).join(' ') || '' };
+  }
+  const firstItem = Array.isArray(booking?.booking_items) ? booking.booking_items[0] : undefined;
+  const trip = firstItem?.schedule?.departure_route && firstItem?.schedule?.arrival_route
+    ? `${firstItem.schedule.departure_route} → ${firstItem.schedule.arrival_route}`
+    : '';
+  const departureTime = firstItem?.schedule?.departure_time || '';
+  const arrivalTime = firstItem?.schedule?.arrival_time || '';
+  const inventoryDateRaw = (firstItem as any)?.inventory?.inventoryDate || '';
+  const inventoryDateStr = (() => {
+    if (!inventoryDateRaw) return '';
+    const d = new Date(inventoryDateRaw);
+    return d.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  })();
+  function toMinutes(t?: string) {
+    const s = String(t || '').trim();
+    const m = s.match(/^([0-1]?\d|2[0-3]):([0-5]\d)$/);
+    if (!m) return null;
+    const h = Number(m[1]);
+    const mm = Number(m[2]);
+    return h * 60 + mm;
+  }
+  const dm = toMinutes(departureTime);
+  const am = toMinutes(arrivalTime);
+  const duration = dm != null && am != null && am >= dm ? `${am - dm} min` : '';
+  const boatName = firstItem?.schedule?.boat?.name || '';
+  const boatCapacity = firstItem?.schedule?.boat?.capacity ?? null;
+  const vendorName = (booking?.tenant?.vendorName || booking?.tenant?.vendor_name || '') as string;
+  const categoryName = (firstItem as any)?.product?.category?.name || '';
+  const passengerCount = Array.isArray(booking?.booking_items) ? booking.booking_items.length : 0;
   return (
     <Paper shadow="sm" radius="lg" p="xl" bg="white">
       <Stack gap="xl">
@@ -27,10 +59,57 @@ export function BookingReview({
               <IconAnchor size={20} color="#6b7280" />
               <Text c="dark">Code: {booking?.booking_code || '-'}</Text>
             </Group>
-            <Group align="center" gap="md">
-              <IconCalendar size={20} color="#6b7280" />
-              <Text c="dark">Status: {booking?.status || '-'}</Text>
-            </Group>
+            
+            {categoryName && (
+              <Group align="center" gap="md">
+                <IconBriefcase size={20} color="#6b7280" />
+                <Text c="dark">Category: {categoryName}</Text>
+              </Group>
+            )}
+
+            {(boatName || typeof boatCapacity === 'number') && (
+              <Group align="center" gap="md">
+                <IconAnchor size={20} color="#6b7280" />
+                <Text c="dark">Boat: {boatName || '-'}{typeof boatCapacity === 'number'}</Text>
+              </Group>
+            )}
+            {vendorName && (
+              <Group align="center" gap="md">
+                <IconBriefcase size={20} color="#6b7280" />
+                <Text c="dark">Vendor: {vendorName}</Text>
+              </Group>
+            )}
+            {trip && (
+              <Group align="center" gap="md">
+                <IconClock size={20} color="#6b7280" />
+                <Text c="dark">Trip: {trip}</Text>
+              </Group>
+            )}
+            {inventoryDateStr && (
+              <Group align="center" gap="md">
+                <IconCalendar size={20} color="#6b7280" />
+                <Text c="dark">Departure Date: {inventoryDateStr}</Text>
+              </Group>
+            )}
+            {departureTime && (
+              <Group align="center" gap="md">
+                <IconClock size={20} color="#6b7280" />
+                <Text c="dark">Departure Time: {departureTime}</Text>
+              </Group>
+            )}
+            {arrivalTime && (
+              <Group align="center" gap="md">
+                <IconClock size={20} color="#6b7280" />
+                <Text c="dark">Arrival Time: {arrivalTime}</Text>
+              </Group>
+            )}
+            
+            {duration && (
+              <Group align="center" gap="md">
+                <IconClock size={20} color="#6b7280" />
+                <Text c="dark">Duration: {duration}</Text>
+              </Group>
+            )}
           </Stack>
         </Stack>
 
@@ -55,6 +134,10 @@ export function BookingReview({
               </Table.Tr>
             </Table.Tbody>
           </Table>
+          <Group gap="md">
+            <Text size="sm" c="dark">Number of Passengers: {passengerCount}</Text>
+            <Text size="sm" c="dark">Special Request: {booking?.customer_notes || '-'}</Text>
+          </Group>
         </Stack>
 
         {/* Passenger Details */}
@@ -64,22 +147,32 @@ export function BookingReview({
             <Table.Thead>
               <Table.Tr style={{ backgroundColor: '#f9fafb' }}>
                 <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>No.</Table.Th>
-                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Name</Table.Th>
-                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Email</Table.Th>
-                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Phone</Table.Th>
-                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Notes</Table.Th>
+                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Title</Table.Th>
+                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>First Name</Table.Th>
+                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Last Name</Table.Th>
+                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Nationality</Table.Th>
+                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Identity Type</Table.Th>
+                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>ID Number</Table.Th>
+                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Age Category</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {(booking?.booking_items || []).map((it: any, idx: number) => (
-                <Table.Tr key={it.id}>
-                  <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{idx + 1}</Table.Td>
-                  <Table.Td style={{ padding: '12px 16px', color: '#111827', fontWeight: 500 }}>{it.participant_name || '-'}</Table.Td>
-                  <Table.Td style={{ padding: '12px 16px', color: '#6b7280' }}>{it.participant_email || '-'}</Table.Td>
-                  <Table.Td style={{ padding: '12px 16px', color: '#6b7280' }}>{it.participant_phone || '-'}</Table.Td>
-                  <Table.Td style={{ padding: '12px 16px', color: '#6b7280' }}>{it.special_requirements || '-'}</Table.Td>
-                </Table.Tr>
-              ))}
+              {(booking?.booking_items || []).map((it: any, idx: number) => {
+                const nm = splitName(it.participant_name);
+                const meta = it.meta || {};
+                return (
+                  <Table.Tr key={it.id}>
+                    <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{idx + 1}</Table.Td>
+                    <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.title || '-'}</Table.Td>
+                    <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.firstName || nm.first || '-'}</Table.Td>
+                    <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.lastName || nm.last || '-'}</Table.Td>
+                    <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.nationality || '-'}</Table.Td>
+                    <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.identityType || '-'}</Table.Td>
+                    <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.idNumber || '-'}</Table.Td>
+                    <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.ageCategory || '-'}</Table.Td>
+                  </Table.Tr>
+                );
+              })}
             </Table.Tbody>
           </Table>
         </Stack>
