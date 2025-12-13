@@ -65,17 +65,16 @@ export default function AuthRegisterPage() {
         body: JSON.stringify({ userId: publicId, email: normalizedEmail, role: 'CUSTOMER', avatarUrl }),
       });
     } catch (_) {}
-    const redirectTo = searchParams.get('redirectTo') || '/profile';
-    router.push(redirectTo);
+    router.push('/');
   };
 
   const handleGoogleRegister = async () => {
     try {
-      const redirectTo = searchParams.get('redirectTo') || '/profile';
+      const redirectTo = '/';
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: typeof window !== 'undefined' ? `${window.location.origin}${redirectTo.startsWith('/') ? redirectTo : '/profile'}` : undefined,
+          redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/` : undefined,
         },
       });
     } catch (err) {

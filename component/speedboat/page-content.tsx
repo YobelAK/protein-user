@@ -82,6 +82,8 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
   const [cartOpened, { open: openCart, close: closeCart }] = useDisclosure(false);
   const [outboundSel, setOutboundSel] = useState<any | null>(null);
   const [inboundSel, setInboundSel] = useState<any | null>(null);
+  const [routeOrigins, setRouteOrigins] = useState<Array<{ value: string; label: string }>>([]);
+  const [routeDestinations, setRouteDestinations] = useState<Array<{ value: string; label: string }>>([]);
 
   useEffect(() => {
     const load = async () => {
@@ -96,6 +98,14 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
         return `${y}-${m}-${da}`;
       })();
       const date = departure || todayStr;
+      try {
+        const r = await fetch(`/api/speedboat/schedules?onlyRoutes=true`, { cache: 'no-store' });
+        if (r.ok) {
+          const j = await r.json();
+          setRouteOrigins(Array.isArray(j?.origins) ? j.origins : []);
+          setRouteDestinations(Array.isArray(j?.destinations) ? j.destinations : []);
+        }
+      } catch {}
       const urlParams = new URLSearchParams();
       if (from) urlParams.set('from', from);
       if (to) urlParams.set('to', to);
@@ -225,6 +235,9 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
   };
 
   const originOptions = useMemo(() => {
+    if (routeOrigins.length > 0) {
+      return routeOrigins;
+    }
     if (Array.isArray(props.initialOriginOptions) && props.initialOriginOptions.length > 0) {
       return props.initialOriginOptions;
     }
@@ -234,9 +247,12 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
       if (r?.id && r?.name) map.set(r.id, r.name);
     }
     return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
-  }, [props.initialOriginOptions, schedules]);
+  }, [routeOrigins, props.initialOriginOptions, schedules]);
 
   const destinationOptions = useMemo(() => {
+    if (routeDestinations.length > 0) {
+      return routeDestinations;
+    }
     if (Array.isArray(props.initialDestinationOptions) && props.initialDestinationOptions.length > 0) {
       return props.initialDestinationOptions;
     }
@@ -246,7 +262,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
       if (r?.id && r?.name) map.set(r.id, r.name);
     }
     return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
-  }, [props.initialDestinationOptions, schedules]);
+  }, [routeDestinations, props.initialDestinationOptions, schedules]);
 
   const initialFrom = searchParams.get('from') ?? (props.initialFrom ?? null);
   const initialTo = searchParams.get('to') ?? (props.initialTo ?? null);

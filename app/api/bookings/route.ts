@@ -391,6 +391,9 @@ export async function PUT(request: Request) {
     const action = String(body?.action || '').toLowerCase();
     const paymentMethod = body?.paymentMethod as string | undefined;
     const paidAmount = body?.paidAmount as number | string | undefined;
+    const xenditInvoiceId = body?.xenditInvoiceId as string | undefined;
+    const xenditPaymentChannel = body?.xenditPaymentChannel as string | undefined;
+    const invoiceExpiryDate = body?.invoiceExpiryDate ? new Date(String(body.invoiceExpiryDate)) : undefined;
 
     const prisma = db;
 
@@ -408,6 +411,9 @@ export async function PUT(request: Request) {
             paymentMethod: paymentMethod || 'unknown',
             paidAmount: paidAmount !== undefined ? (typeof paidAmount === 'string' ? paidAmount : String(paidAmount)) : undefined,
             paidAt: new Date(),
+            xenditInvoiceId: xenditInvoiceId || undefined,
+            xenditPaymentChannel: xenditPaymentChannel || undefined,
+            invoiceExpiryDate: invoiceExpiryDate || undefined,
           },
         });
 
@@ -1006,14 +1012,16 @@ export async function GET(request: Request) {
       .join('')
       .toUpperCase();
     const status = toCardStatus(b.status, b.paidAt);
-    const bd = b.bookingDate ? new Date(b.bookingDate) : null;
+    const createdRaw = (b as any)?.createdAt ?? (b as any)?.created_at ?? (b as any)?.createdDate ?? (b as any)?.createdate ?? null;
+    const createdDate = createdRaw ? new Date(createdRaw) : null;
     const isPendingPayment = b.status === 'PENDING' && (b.paidAmount == null);
     const pendingType = b.status === 'PENDING' ? (isPendingPayment ? 'payment' : 'refund') : undefined;
-    const deadlineAt = isPendingPayment && bd ? new Date(bd.getTime() + 15 * 60 * 1000) : null;
+    const deadlineAt = isPendingPayment && createdDate ? new Date(createdDate.getTime() + 15 * 60 * 1000) : null;
     const paymentDeadline = deadlineAt ? deadlineAt.toLocaleString('id-ID', { hour12: false }) : null;
     const dateStr = dateObj ? new Date(dateObj).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
     const invDate = firstItem?.inventory?.inventoryDate ? new Date(firstItem.inventory.inventoryDate as any) : null;
-    const departureDate = invDate ? invDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
+    const depDateRaw = b.bookingDate ?? null;
+    const departureDate = depDateRaw ? new Date(depDateRaw).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
     const departureTime = (sched as any)?.departureTime ?? null;
     const arrivalTime = (sched as any)?.arrivalTime ?? null;
     let arrivalAt: string | null = null;
@@ -1033,7 +1041,7 @@ export async function GET(request: Request) {
       title,
       location,
       date: dateStr,
-      bookingDate: bd ? bd.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
+      bookingDate: createdDate ? createdDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
       departureDate,
       departureTime,
       arrivalTime,

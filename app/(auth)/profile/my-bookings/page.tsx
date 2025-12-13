@@ -137,13 +137,15 @@ export default function MyBookingsPage() {
                 stRaw === 'EXPIRED' ? 'Expired' :
                 stRaw === 'REFUNDED' ? 'Refunded' :
                 'Pending';
-              const bd = b?.bookingDate ? new Date(b.bookingDate) : null;
+              const cRaw = (b as any)?.created_at ?? (b as any)?.createdAt ?? (b as any)?.createdDate ?? (b as any)?.createdate ?? null;
+              const bd = cRaw ? new Date(cRaw) : null;
               const pendingType: CardItem['pendingType'] = (status === 'Pending' && (b?.paidAmount || (b as any)?.paid_amount)) ? 'refund' : (status === 'Pending' ? 'payment' : undefined);
               const deadlineAt = (pendingType === 'payment' && bd) ? new Date(bd.getTime() + 15 * 60 * 1000) : null;
               const paymentDeadline = deadlineAt ? deadlineAt.toLocaleString('id-ID', { hour12: false }) : null;
               const dateStr = dateObj ? new Date(dateObj).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
               const invDate = firstItem?.inventory?.inventoryDate ? new Date((firstItem as any).inventory.inventoryDate) : null;
-              const departureDate = invDate ? invDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
+              const depRaw = b?.bookingDate ?? null;
+              const departureDate = depRaw ? new Date(depRaw).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
               const departureTime = (sched as any)?.departureTime ?? null;
               const arrivalTime = (sched as any)?.arrivalTime ?? null;
               let arrivalAt: string | null = null;
@@ -239,13 +241,15 @@ export default function MyBookingsPage() {
                 stRaw === 'EXPIRED' ? 'Expired' :
                 stRaw === 'REFUNDED' ? 'Refunded' :
                 'Pending';
-              const bd = b?.bookingDate ? new Date(b.bookingDate) : null;
+              const cRaw = (b as any)?.created_at ?? (b as any)?.createdAt ?? (b as any)?.createdDate ?? (b as any)?.createdate ?? null;
+              const bd = cRaw ? new Date(cRaw) : null;
               const pendingType: CardItem['pendingType'] = (status === 'Pending' && (b?.paidAmount || (b as any)?.paid_amount)) ? 'refund' : (status === 'Pending' ? 'payment' : undefined);
               const deadlineAt = (pendingType === 'payment' && bd) ? new Date(bd.getTime() + 15 * 60 * 1000) : null;
               const paymentDeadline = deadlineAt ? deadlineAt.toLocaleString('id-ID', { hour12: false }) : null;
               const dateStr = dateObj ? new Date(dateObj).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
               const invDate = firstItem?.inventory?.inventoryDate ? new Date((firstItem as any).inventory.inventoryDate) : null;
-              const departureDate = invDate ? invDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
+              const depRaw = b?.bookingDate ?? null;
+              const departureDate = depRaw ? new Date(depRaw).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
               const departureTime = (sched as any)?.departureTime ?? null;
               const arrivalTime = (sched as any)?.arrivalTime ?? null;
               let arrivalAt: string | null = null;

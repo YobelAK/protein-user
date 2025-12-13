@@ -97,25 +97,38 @@ export function BookingCard({
             <Text c="#6b7280">Code: <Text span c="#284361" fw={600}>{bookingCode}</Text></Text>
             <Text c="#6b7280">Booking Date: <Text span c="#284361" fw={600}>{bookingDate}</Text></Text>
           </Group>
-          <Menu position="bottom-end" shadow="md">
-          <Menu.Target>
-            <ActionIcon variant="outline" radius="md" size={36} style={{ borderColor: '#284361', color: '#284361' }}>
-              <MoreVertical size={18} />
-            </ActionIcon>
-          </Menu.Target>
-          <Menu.Dropdown>
-            {onViewDetails && <Menu.Item onClick={onViewDetails}>View Details</Menu.Item>}
-            {(status === 'Booked') && onViewInvoice && (
-              <Menu.Item onClick={onViewInvoice}>View Invoice</Menu.Item>
+          <Group gap={12} align="center">
+            {(status === 'Pending' && pendingType === 'payment') && (
+              <Group gap={6} align="center">
+                {/* <Text c="#6b7280" size="sm">Payment deadline</Text> */}
+                <Text c="#ef4444" fw={2000}>{(() => {
+                  if (timeLeft === null) return paymentDeadline || '—';
+                  const m = Math.floor(timeLeft / 60);
+                  const s = timeLeft % 60;
+                  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+                })()}</Text>
+              </Group>
             )}
-            {(status === 'Booked') && onIssueRefund && (
-              <Menu.Item onClick={onIssueRefund}>Issue Refund</Menu.Item>
-            )}
-            {(status === 'Completed') && hasReview && onViewReview && (
-              <Menu.Item onClick={onViewReview}>View Review</Menu.Item>
-            )}
-          </Menu.Dropdown>
-        </Menu>
+            <Menu position="bottom-end" shadow="md">
+              <Menu.Target>
+                <ActionIcon variant="outline" radius="md" size={36} style={{ borderColor: '#284361', color: '#284361' }}>
+                  <MoreVertical size={18} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                {onViewDetails && <Menu.Item onClick={onViewDetails}>View Details</Menu.Item>}
+                {(status === 'Booked') && onViewInvoice && (
+                  <Menu.Item onClick={onViewInvoice}>View Invoice</Menu.Item>
+                )}
+                {(status === 'Booked') && onIssueRefund && (
+                  <Menu.Item onClick={onIssueRefund}>Issue Refund</Menu.Item>
+                )}
+                {(status === 'Completed') && hasReview && onViewReview && (
+                  <Menu.Item onClick={onViewReview}>View Review</Menu.Item>
+                )}
+              </Menu.Dropdown>
+            </Menu>
+          </Group>
         </Group>
 
         <Group justify="space-between" align="flex-start" style={{ alignItems: 'stretch' }}>
@@ -146,17 +159,6 @@ export function BookingCard({
               </Group>
             </Box>
           </Group>
-          {status === 'Pending' && pendingType === 'payment' && (
-            <Box style={{ textAlign: 'right' }}>
-              <Text c="#6b7280" size="sm">Payment deadline</Text>
-              <Text c="#ef4444" fw={700}>{(() => {
-                if (timeLeft === null) return paymentDeadline || '—';
-                const m = Math.floor(timeLeft / 60);
-                const s = timeLeft % 60;
-                return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-              })()}</Text>
-            </Box>
-          )}
           <Box style={{ textAlign: 'right' }}>
             <Group justify="space-between" align="center">
               <Text c="#6b7280" size="sm">Departure Date</Text>

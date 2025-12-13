@@ -249,92 +249,72 @@ export default function PaymentPage() {
           return;
         }
         if (selectedPaymentMethod === 'virtual-account') {
-          const createRes = await fetch('/api/payments/va/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: id, bankCode: selectedVaBank }) });
-          if (!createRes.ok) return;
-          const j = await createRes.json();
-          setVaMap((prev) => ({ ...prev, [idx]: { accountNumber: j?.accountNumber || '', bankCode: j?.bankCode || '' } }));
-          if (timers.current && timers.current[idx]) { try { clearInterval(timers.current[idx]); } catch {} }
-          timers.current[idx] = setInterval(async () => {
-            try {
-              const s = await fetch(`/api/payments/status?bookingId=${encodeURIComponent(id)}`, { cache: 'no-store' });
-              if (s.ok) {
-                const sj = await s.json();
-                const st = String(sj?.status || '').toUpperCase();
-                if (st === 'PAID') {
-                  try { clearInterval(timers.current[idx]); } catch {}
-                  timers.current[idx] = undefined;
-                  setBookings((prev) => {
-                    const copy = [...prev];
-                    copy[idx] = { ...copy[idx], status: 'PAID' };
-                    return copy;
-                  });
-                  const allPaid = (arr: any[]) => arr.every((bb: any) => String(bb?.status || '').toUpperCase() === 'PAID' || String(bb?.status || '').toUpperCase() === 'COMPLETED');
-                  const shouldRedirect = allPaid((Array.isArray(bookings) ? bookings : []).map((bb, i) => (i === idx ? { ...bb, status: 'PAID' } : bb)));
-                  if (shouldRedirect) {
-                    router.push('/profile/my-bookings');
-                  }
-                }
-                if (st === 'EXPIRED') {
-                  try { clearInterval(timers.current[idx]); } catch {}
-                  timers.current[idx] = undefined;
-                  setBookings((prev) => {
-                    const copy = [...prev];
-                    copy[idx] = { ...copy[idx], status: 'EXPIRED' };
-                    return copy;
-                  });
-                }
-              }
-            } catch {}
-          }, 3000);
+          const paidAmount = b?.total_amount ?? b?.totalAmount ?? 0;
+          const invId = `INV-VA-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+          await fetch('/api/bookings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'pay',
+              id,
+              paymentMethod: 'VIRTUAL_ACCOUNT',
+              xenditPaymentChannel: selectedVaBank || 'VA',
+              xenditInvoiceId: invId,
+              paidAmount,
+            }),
+          });
+          setBookings((prev) => {
+            const copy = [...prev];
+            copy[idx] = { ...copy[idx], status: 'PAID' };
+            return copy;
+          });
+          const allPaid = (arr: any[]) => arr.every((bb: any) => String(bb?.status || '').toUpperCase() === 'PAID' || String(bb?.status || '').toUpperCase() === 'COMPLETED');
+          const shouldRedirect = allPaid((Array.isArray(bookings) ? bookings : []).map((bb, i) => (i === idx ? { ...bb, status: 'PAID' } : bb)));
+          if (shouldRedirect) {
+            router.push('/profile/my-bookings');
+          }
           return;
         }
         if (selectedPaymentMethod === 'credit-card') {
-          const parts = (cardExpiry || '').split('/').map((s) => s.trim());
-          const mm = Number(parts[0] || 0);
-          const yy = Number(parts[1] || 0);
-          const createRes = await fetch('/api/payments/card/create', {
-            method: 'POST',
+          const num = String(cardNumber || '').replace(/\s+/g, '');
+          const exp = String(cardExpiry || '').trim();
+          const cvn = String(cardCvn || '').trim();
+          const name = String(cardName || '').trim();
+          if (!/^\d{12,19}$/.test(num)) { window.alert('Nomor kartu harus angka 12–19 digit'); return; }
+          const parts = exp.split('/').map((s) => s.trim());
+          if (parts.length !== 2 || !/^\d{2}$/.test(parts[0]) || !/^\d{2}$/.test(parts[1])) { window.alert('Expiry harus format MM/YY'); return; }
+          const mm = Number(parts[0]); const yy = Number(parts[1]);
+          if (mm < 1 || mm > 12) { window.alert('Bulan expiry tidak valid'); return; }
+          const year = 2000 + yy;
+          const now = new Date();
+          const expDate = new Date(year, mm, 0, 23, 59, 59, 999);
+          if (expDate < now) { window.alert('Kartu sudah kedaluwarsa'); return; }
+          if (!/^\d{3,4}$/.test(cvn)) { window.alert('CVV harus 3–4 digit angka'); return; }
+          if (!name) { window.alert('Nama pemegang kartu wajib diisi'); return; }
+          const paidAmount = b?.total_amount ?? b?.totalAmount ?? 0;
+          const invId = `INV-CC-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+          await fetch('/api/bookings', {
+            method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bookingId: id, cardNumber, cardExpMonth: mm, cardExpYear: 2000 + yy, cardCvn, cardName }),
+            body: JSON.stringify({
+              action: 'pay',
+              id,
+              paymentMethod: 'CREDIT_CARD',
+              xenditPaymentChannel: 'CREDIT_CARD',
+              xenditInvoiceId: invId,
+              paidAmount,
+            }),
           });
-          if (!createRes.ok) return;
-          const j = await createRes.json();
-          if (j?.requiresAction && j?.redirectUrl) {
-            try { window.open(String(j.redirectUrl), '_blank'); } catch {}
+          setBookings((prev) => {
+            const copy = [...prev];
+            copy[idx] = { ...copy[idx], status: 'PAID' };
+            return copy;
+          });
+          const allPaid = (arr: any[]) => arr.every((bb: any) => String(bb?.status || '').toUpperCase() === 'PAID' || String(bb?.status || '').toUpperCase() === 'COMPLETED');
+          const shouldRedirect = allPaid((Array.isArray(bookings) ? bookings : []).map((bb, i) => (i === idx ? { ...bb, status: 'PAID' } : bb)));
+          if (shouldRedirect) {
+            router.push('/profile/my-bookings');
           }
-          if (timers.current && timers.current[idx]) { try { clearInterval(timers.current[idx]); } catch {} }
-          timers.current[idx] = setInterval(async () => {
-            try {
-              const s = await fetch(`/api/payments/status?bookingId=${encodeURIComponent(id)}`, { cache: 'no-store' });
-              if (s.ok) {
-                const sj = await s.json();
-                const st = String(sj?.status || '').toUpperCase();
-                if (st === 'PAID') {
-                  try { clearInterval(timers.current[idx]); } catch {}
-                  timers.current[idx] = undefined;
-                  setBookings((prev) => {
-                    const copy = [...prev];
-                    copy[idx] = { ...copy[idx], status: 'PAID' };
-                    return copy;
-                  });
-                  const allPaid = (arr: any[]) => arr.every((bb: any) => String(bb?.status || '').toUpperCase() === 'PAID' || String(bb?.status || '').toUpperCase() === 'COMPLETED');
-                  const shouldRedirect = allPaid((Array.isArray(bookings) ? bookings : []).map((bb, i) => (i === idx ? { ...bb, status: 'PAID' } : bb)));
-                  if (shouldRedirect) {
-                    router.push('/profile/my-bookings');
-                  }
-                }
-                if (st === 'EXPIRED') {
-                  try { clearInterval(timers.current[idx]); } catch {}
-                  timers.current[idx] = undefined;
-                  setBookings((prev) => {
-                    const copy = [...prev];
-                    copy[idx] = { ...copy[idx], status: 'EXPIRED' };
-                    return copy;
-                  });
-                }
-              }
-            } catch {}
-          }, 3000);
           return;
         }
         const paidAmount = b?.total_amount ?? b?.totalAmount ?? 0;
@@ -399,68 +379,60 @@ export default function PaymentPage() {
         return;
       }
       if (selectedPaymentMethod === 'virtual-account') {
-        const createRes = await fetch('/api/payments/va/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: id, bankCode: selectedVaBank }) });
-        if (!createRes.ok) return;
-        const j = await createRes.json();
-        setVaSingle({ accountNumber: j?.accountNumber || '', bankCode: j?.bankCode || '' });
-        if (singleTimer.current) { try { clearInterval(singleTimer.current); } catch {} }
-        singleTimer.current = setInterval(async () => {
-          try {
-            const s = await fetch(`/api/payments/status?bookingId=${encodeURIComponent(id)}`, { cache: 'no-store' });
-            if (s.ok) {
-              const sj = await s.json();
-              const st = String(sj?.status || '').toUpperCase();
-              if (st === 'PAID') {
-                try { if (singleTimer.current) { clearInterval(singleTimer.current); } } catch {}
-                singleTimer.current = null;
-                const qs = new URLSearchParams();
-                qs.set('id', String(id));
-                router.push(`/speedboat/book/ticket?${qs.toString()}`);
-              }
-              if (st === 'EXPIRED') {
-                try { if (singleTimer.current) { clearInterval(singleTimer.current); } } catch {}
-                singleTimer.current = null;
-              }
-            }
-          } catch {}
-        }, 3000);
+        const paidAmount = booking?.total_amount ?? booking?.totalAmount ?? 0;
+        const invId = `INV-VA-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+        const res = await fetch('/api/bookings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'pay',
+            id,
+            paymentMethod: 'VIRTUAL_ACCOUNT',
+            xenditPaymentChannel: selectedVaBank || 'VA',
+            xenditInvoiceId: invId,
+            paidAmount,
+          }),
+        });
+        if (!res.ok) return;
+        const qs = new URLSearchParams();
+        qs.set('id', String(id));
+        router.push(`/speedboat/book/ticket?${qs.toString()}`);
         return;
       }
       if (selectedPaymentMethod === 'credit-card') {
-        const parts = (cardExpiry || '').split('/').map((s) => s.trim());
-        const mm = Number(parts[0] || 0);
-        const yy = Number(parts[1] || 0);
-        const createRes = await fetch('/api/payments/card/create', {
-          method: 'POST',
+        const num = String(cardNumber || '').replace(/\s+/g, '');
+        const exp = String(cardExpiry || '').trim();
+        const cvn = String(cardCvn || '').trim();
+        const name = String(cardName || '').trim();
+        if (!/^\d{12,19}$/.test(num)) { window.alert('Nomor kartu harus angka 12–19 digit'); return; }
+        const parts = exp.split('/').map((s) => s.trim());
+        if (parts.length !== 2 || !/^\d{2}$/.test(parts[0]) || !/^\d{2}$/.test(parts[1])) { window.alert('Expiry harus format MM/YY'); return; }
+        const mm = Number(parts[0]); const yy = Number(parts[1]);
+        if (mm < 1 || mm > 12) { window.alert('Bulan expiry tidak valid'); return; }
+        const year = 2000 + yy;
+        const now = new Date();
+        const expDate = new Date(year, mm, 0, 23, 59, 59, 999);
+        if (expDate < now) { window.alert('Kartu sudah kedaluwarsa'); return; }
+        if (!/^\d{3,4}$/.test(cvn)) { window.alert('CVV harus 3–4 digit angka'); return; }
+        if (!name) { window.alert('Nama pemegang kartu wajib diisi'); return; }
+        const paidAmount = booking?.total_amount ?? booking?.totalAmount ?? 0;
+        const invId = `INV-CC-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+        const res = await fetch('/api/bookings', {
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bookingId: id, cardNumber, cardExpMonth: mm, cardExpYear: 2000 + yy, cardCvn, cardName }),
+          body: JSON.stringify({
+            action: 'pay',
+            id,
+            paymentMethod: 'CREDIT_CARD',
+            xenditPaymentChannel: 'CREDIT_CARD',
+            xenditInvoiceId: invId,
+            paidAmount,
+          }),
         });
-        if (!createRes.ok) return;
-        const j = await createRes.json();
-        if (j?.requiresAction && j?.redirectUrl) {
-          try { window.open(String(j.redirectUrl), '_blank'); } catch {}
-        }
-        if (singleTimer.current) { try { clearInterval(singleTimer.current); } catch {} }
-        singleTimer.current = setInterval(async () => {
-          try {
-            const s = await fetch(`/api/payments/status?bookingId=${encodeURIComponent(id)}`, { cache: 'no-store' });
-            if (s.ok) {
-              const sj = await s.json();
-              const st = String(sj?.status || '').toUpperCase();
-              if (st === 'PAID') {
-                try { if (singleTimer.current) { clearInterval(singleTimer.current); } } catch {}
-                singleTimer.current = null;
-                const qs = new URLSearchParams();
-                qs.set('id', String(id));
-                router.push(`/speedboat/book/ticket?${qs.toString()}`);
-              }
-              if (st === 'EXPIRED') {
-                try { if (singleTimer.current) { clearInterval(singleTimer.current); } } catch {}
-                singleTimer.current = null;
-              }
-            }
-          } catch {}
-        }, 3000);
+        if (!res.ok) return;
+        const qs = new URLSearchParams();
+        qs.set('id', String(id));
+        router.push(`/speedboat/book/ticket?${qs.toString()}`);
         return;
       }
       const paidAmount = booking?.total_amount ?? booking?.totalAmount ?? 0;

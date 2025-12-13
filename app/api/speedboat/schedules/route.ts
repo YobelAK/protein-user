@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 export async function GET(request: Request) {
   const urlObj = new URL(request.url);
   const onlyProviders = urlObj.searchParams.get('onlyProviders') === 'true';
+  const onlyRoutes = urlObj.searchParams.get('onlyRoutes') === 'true';
   const from = urlObj.searchParams.get('from') || '';
   const to = urlObj.searchParams.get('to') || '';
   const windowParam = urlObj.searchParams.get('window') || '';
@@ -44,6 +45,22 @@ export async function GET(request: Request) {
   }
 
   const data = await res.json();
+
+  if (onlyRoutes) {
+    const depMap = new Map<string, string>();
+    const arrMap = new Map<string, string>();
+    for (const s of data) {
+      const depId = s?.departureRoute?.id || '';
+      const depName = s?.departureRoute?.name || '';
+      const arrId = s?.arrivalRoute?.id || '';
+      const arrName = s?.arrivalRoute?.name || '';
+      if (depId && depName && !depMap.has(depId)) depMap.set(depId, depName);
+      if (arrId && arrName && !arrMap.has(arrId)) arrMap.set(arrId, arrName);
+    }
+    const origins = Array.from(depMap.entries()).map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+    const destinations = Array.from(arrMap.entries()).map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+    return NextResponse.json({ origins, destinations });
+  }
 
   const toMinutes = (t: string | null) => {
     if (!t) return null;
