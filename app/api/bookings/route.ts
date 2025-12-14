@@ -804,7 +804,7 @@ export async function GET(request: Request) {
 
   if (id) {
     const prisma = db;
-  const b = await prisma.booking.findUnique({
+  let b = await prisma.booking.findUnique({
     where: { id },
     include: {
       items: {
@@ -840,12 +840,30 @@ export async function GET(request: Request) {
     if (!allowed) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    try {
+      if (b.status === 'PAID') {
+        const firstItem = b.items[0];
+        const invDate = firstItem?.inventory?.inventoryDate as any;
+        const arrivalTime = (firstItem?.product as any)?.fastboatSchedule?.arrivalTime ?? null;
+        if (invDate && arrivalTime) {
+          const parts = String(arrivalTime).split(':');
+          const hh = Number(parts[0] || 0);
+          const mm = Number(parts[1] || 0);
+          const d = new Date(invDate as any);
+          d.setHours(hh, mm, 0, 0);
+          if (d.getTime() <= Date.now()) {
+            await prisma.booking.update({ where: { id: b.id }, data: { status: 'COMPLETED', updatedAt: new Date() } });
+            b = { ...b, status: 'COMPLETED' } as any;
+          }
+        }
+      }
+    } catch {}
     return NextResponse.json({ booking: b });
   }
 
   if (code) {
     const prisma = db;
-  const b = await prisma.booking.findFirst({
+  let b = await prisma.booking.findFirst({
     where: { bookingCode: code },
     include: {
       items: {
@@ -867,6 +885,24 @@ export async function GET(request: Request) {
     if (!b) {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
+    try {
+      if (b.status === 'PAID') {
+        const firstItem = b.items[0];
+        const invDate = firstItem?.inventory?.inventoryDate as any;
+        const arrivalTime = (firstItem?.product as any)?.fastboatSchedule?.arrivalTime ?? null;
+        if (invDate && arrivalTime) {
+          const parts = String(arrivalTime).split(':');
+          const hh = Number(parts[0] || 0);
+          const mm = Number(parts[1] || 0);
+          const d = new Date(invDate as any);
+          d.setHours(hh, mm, 0, 0);
+          if (d.getTime() <= Date.now()) {
+            await prisma.booking.update({ where: { id: b.id }, data: { status: 'COMPLETED', updatedAt: new Date() } });
+            b = { ...b, status: 'COMPLETED' } as any;
+          }
+        }
+      }
+    } catch {}
     return NextResponse.json({ booking: b });
   }
 
@@ -900,7 +936,7 @@ export async function GET(request: Request) {
     },
   });
 
-  const bookings = await prisma.booking.findMany({
+  let bookings = await prisma.booking.findMany({
     where: {
       OR: [
         userId ? { customerId: userId } : undefined,
@@ -926,6 +962,54 @@ export async function GET(request: Request) {
       tenant: true,
     },
   });
+  try {
+    const idsToComplete: string[] = [];
+    const now = Date.now();
+    for (const b of bookings) {
+      if (b.status !== 'PAID') continue;
+      const firstItem = b.items[0];
+      const invDate = firstItem?.inventory?.inventoryDate as any;
+      const arrivalTime = (firstItem?.product as any)?.fastboatSchedule?.arrivalTime ?? null;
+      if (!invDate || !arrivalTime) continue;
+      const parts = String(arrivalTime).split(':');
+      const hh = Number(parts[0] || 0);
+      const mm = Number(parts[1] || 0);
+      const d = new Date(invDate as any);
+      d.setHours(hh, mm, 0, 0);
+      if (d.getTime() <= now) idsToComplete.push(b.id);
+    }
+    for (const id of idsToComplete) {
+      await prisma.booking.update({ where: { id }, data: { status: 'COMPLETED', updatedAt: new Date() } });
+    }
+    if (idsToComplete.length > 0) {
+      bookings = await prisma.booking.findMany({
+        where: {
+          OR: [
+            userId ? { customerId: userId } : undefined,
+            email ? { customerEmail: email } : undefined,
+            publicUserId ? { customerId: publicUserId } : undefined,
+          ].filter(Boolean) as any,
+        },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          items: {
+            include: {
+              product: {
+                include: {
+                  category: true,
+                  fastboatSchedule: {
+                    include: { departureRoute: true, arrivalRoute: true, boat: true },
+                  },
+                },
+              },
+              inventory: true,
+            },
+          },
+          tenant: true,
+        },
+      });
+    }
+  } catch {}
 
   function toCardStatus(status: string, paidAt?: Date | null) {
     if (status === 'PENDING') return 'Pending';
