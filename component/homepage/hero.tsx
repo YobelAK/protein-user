@@ -1,15 +1,31 @@
 "use client";
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Container, Title, Text, Button, Stack } from '@mantine/core';
 import Link from 'next/link';
 import homeImg from '../../public/asset/pic/home.png';
 
 export function Hero() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  const heroHeight = isMobile ? 360 : 500;
+  const titleSize = isMobile ? 'clamp(1.75rem, 7vw, 2.25rem)' : '3rem';
+  const textSize = isMobile ? '1rem' : '1.25rem';
+  const buttonSize = isMobile ? 'md' : 'lg';
+  const justify = isMobile ? 'center' : 'flex-start';
+  const align = isMobile ? 'center' : 'flex-start';
+
   return (
     <Box
       style={{
         position: 'relative',
-        height: '500px',
+        height: heroHeight,
         width: '100%',
         backgroundImage:
           `linear-gradient(rgba(40,67,97,0.35), rgba(30,58,95,0.35)), url(${homeImg.src})`,
@@ -17,12 +33,12 @@ export function Hero() {
         backgroundPosition: 'center',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'flex-start'
+        justifyContent: justify
       }}
     >
-      <Container size="xl" style={{ position: 'relative', zIndex: 1, textAlign: 'left' }}>
-        <Box style={{ maxWidth: '600px' }}>
-          <Stack gap="lg" align="flex-start">
+      <Container size="xl" style={{ position: 'relative', zIndex: 1, textAlign: isMobile ? 'center' : 'left' }}>
+        <Box style={{ maxWidth: isMobile ? '100%' : '600px' }}>
+          <Stack gap="lg" align={align}>
             <Title
               order={1}
               size="xl"
@@ -30,27 +46,27 @@ export function Hero() {
               c="white"
               style={{ 
                 lineHeight: 1.1,
-                fontSize: '3rem',
-                textAlign: 'left'
+                fontSize: titleSize,
+                textAlign: isMobile ? 'center' : 'left'
               }}
             >
               Book Fast, Sail Faster
             </Title>
             <Text
-              size="xl"
+              size={isMobile ? 'md' : 'xl'}
               c="gray.1"
-              style={{ lineHeight: 1.6 }}
+              style={{ lineHeight: 1.6, fontSize: textSize }}
             >
               Explore Bali and the Gili Islands effortlessly with our trusted
               booking service.
             </Text>
             <Button
-              size="lg"
+              size={buttonSize}
               color="#2dbe8d"
               style={{
                 fontWeight: 600,
-                padding: '12px 32px',
-                fontSize: '16px'
+                padding: isMobile ? '10px 24px' : '12px 32px',
+                fontSize: isMobile ? '14px' : '16px'
               }}
               styles={{
                 root: {

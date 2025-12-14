@@ -151,47 +151,12 @@ export async function POST(request: Request) {
               const getRes = await fetch(getUrl, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }, cache: 'no-store' });
               let invId: string | null = null;
               let bookedUnits = 0;
-              let availableUnits = 0;
               if (getRes.ok) {
                 const arr = await getRes.json();
                 const row = Array.isArray(arr) && arr.length ? arr[0] : null;
                 if (row) {
                   invId = String(row.id || '');
-                  const newAvail = Math.max(0, Number(row.availableUnits || 0) - g.qty);
-                  const newBooked = Number(row.bookedUnits || 0) + g.qty;
-                  const patchUrl = `${supabaseUrl}/rest/v1/inventory?id=eq.${encodeURIComponent(invId)}`;
-                  const patchRes = await fetch(patchUrl, { method: 'PATCH', headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify({ availableUnits: newAvail, bookedUnits: newBooked }) });
-                  if (patchRes.ok) {
-                    const patched = await patchRes.json();
-                    const pr = Array.isArray(patched) && patched.length ? patched[0] : null;
-                    bookedUnits = Number(pr?.bookedUnits || newBooked);
-                    availableUnits = Number(pr?.availableUnits || newAvail);
-                  } else {
-                    bookedUnits = newBooked;
-                    availableUnits = newAvail;
-                  }
-                }
-              }
-              if (!invId) {
-                let cap = Number(g.capacity || 0);
-                if (!cap) {
-                  const capRes = await fetch(`${supabaseUrl}/rest/v1/fastboat_schedules?select=${encodeURIComponent('capacity')}&productId=eq.${encodeURIComponent(g.productId)}&limit=1`, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }, cache: 'no-store' });
-                  if (capRes.ok) {
-                    const capArr = await capRes.json();
-                    const capRow = Array.isArray(capArr) && capArr.length ? capArr[0] : null;
-                    cap = Number(capRow?.capacity || 0) || g.qty;
-                  } else {
-                    cap = g.qty;
-                  }
-                }
-                const avail = Math.max(0, cap - g.qty);
-                const postRes = await fetch(`${supabaseUrl}/rest/v1/inventory`, { method: 'POST', headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify({ tenantId: g.tenantId, productId: g.productId, inventoryDate: g.dateStr, totalCapacity: cap, bookedUnits: g.qty, availableUnits: avail, is_available: true }) });
-                if (postRes.ok) {
-                  const created = await postRes.json();
-                  const row = Array.isArray(created) && created.length ? created[0] : null;
-                  invId = row ? String(row.id || '') : null;
-                  bookedUnits = Number(row?.bookedUnits || g.qty);
-                  availableUnits = Number(row?.availableUnits || avail);
+                  bookedUnits = Number(row.bookedUnits || 0);
                 }
               }
               if (invId) {

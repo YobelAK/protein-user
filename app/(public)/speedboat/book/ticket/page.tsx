@@ -42,19 +42,25 @@ import {
 } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
+import QRCode from 'qrcode';
+import { useMediaQuery } from '@mantine/hooks';
 
 export default function BookingConfirmationPage() {
   const router = useRouter();
   const [booking, setBooking] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [bookingId, setBookingId] = useState<string | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const printRef = useRef<HTMLDivElement>(null);
+  const pdfRef = useRef<HTMLDivElement>(null);
   const printCSS = `
+    @page { size: A4; margin: 16mm; }
     @media print {
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      body * { visibility: hidden; }
-      #print-area, #print-area * { visibility: visible; }
-      #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body * { visibility: hidden !important; }
+      #pdf-content, #pdf-content * { visibility: visible !important; }
+      #pdf-content { position: absolute; left: 0; top: 0; width: 100%; display: block !important; }
     }
   `;
   const toMinutes = (t?: string) => {
@@ -98,6 +104,7 @@ export default function BookingConfirmationPage() {
         const idParam = search.get('id');
         const idStorage = typeof window !== 'undefined' ? localStorage.getItem('booking_id') : null;
         const id = idParam || idStorage;
+        setBookingId(id || null);
         if (!id) return;
         const uid = session.user.id;
         const email = (session.user.email || '').trim().toLowerCase();
@@ -110,6 +117,19 @@ export default function BookingConfirmationPage() {
     };
     load();
   }, []);
+
+  useEffect(() => {
+    const gen = async () => {
+      try {
+        if (!bookingId) return;
+        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+        const url = `${origin}/speedboat/book/ticket?id=${encodeURIComponent(bookingId)}`;
+        const dataUrl = await QRCode.toDataURL(url, { width: 256, margin: 1 });
+        setQrDataUrl(dataUrl);
+      } catch {}
+    };
+    gen();
+  }, [bookingId]);
 
   const handleBackToHome = () => {
     router.push('/');
@@ -133,6 +153,8 @@ export default function BookingConfirmationPage() {
     } catch {}
   };
 
+  const isMobile = useMediaQuery('(max-width: 768px)');
+
   return (
     <Box style={{ minHeight: '100vh', backgroundColor: 'white', display: 'flex', flexDirection: 'column' }}>
       <Header />
@@ -149,7 +171,7 @@ export default function BookingConfirmationPage() {
               Booking Confirmed
             </Title>
             <Text c="dimmed" ta="center" mb="xs">
-              Thank you for booking with Caspia Bali. Your payment via QRIS has
+              Thank you for booking with Best Trip Guide. Your payment via QRIS has
               been received successfully.
             </Text>
             <Text c="dimmed" ta="center">
@@ -197,8 +219,8 @@ export default function BookingConfirmationPage() {
                     <Box>
                       <Text size="sm" c="dimmed" mb={4}>Booking Date</Text>
                       <Text fw={600} c="#284361">{(() => {
-                        const d = items?.[0]?.itemDate || booking?.bookingDate;
-                        return d ? new Date(d).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) : '-';
+                        const cr = (booking as any)?.created_at ?? (booking as any)?.createdAt ?? null;
+                        return cr ? new Date(cr).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) : '-';
                       })()}</Text>
                     </Box>
                     <Box>
@@ -230,7 +252,7 @@ export default function BookingConfirmationPage() {
                     <Box>
                       <Text size="sm" c="dimmed" mb={4}>Departure Date</Text>
                       <Text fw={600} c="#284361">{(() => {
-                        const d = items?.[0]?.inventory?.inventoryDate;
+                        const d = booking?.bookingDate;
                         return d ? new Date(d).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) : '-';
                       })()}</Text>
                     </Box>
@@ -295,7 +317,7 @@ export default function BookingConfirmationPage() {
             {/* Right Column - QR Code & Travel Tips */}
             <Grid.Col span={{ base: 12, lg: 4 }}>
               <Stack gap="xl">
-              {/* <Card withBorder radius="md" p="xl" bg="white">
+              <Card withBorder radius="md" p="xl" bg="white">
                 <Title order={2} size="xl" fw={600} c="#284361" mb="lg">
                   E-Ticket QR Code
                 </Title>
@@ -313,34 +335,24 @@ export default function BookingConfirmationPage() {
                         justifyContent: 'center'
                       }}
                     >
-                      <Box ta="center" c="dimmed">
-                        <SimpleGrid 
-                          cols={8} 
-                          spacing={1} 
-                          w={160} 
-                          h={160} 
-                          bg="#e9ecef" 
-                          p={8} 
-                          style={{ borderRadius: 4 }}
-                        >
-                          {Array.from({ length: 64 }).map((_, i) => (
-                            <Box 
-                              key={i} 
-                              w="100%" 
-                              h="100%" 
-                              bg={Math.random() > 0.5 ? 'black' : 'white'}
-                              style={{ borderRadius: 2 }}
-                            />
-                          ))}
-                        </SimpleGrid>
+                      <Box ta="center" c="dimmed" w={160} h={160} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {qrDataUrl ? (
+                          <img
+                            src={qrDataUrl}
+                            alt="E-Ticket QR"
+                            style={{ width: 160, height: 160, objectFit: 'contain', borderRadius: 4 }}
+                          />
+                        ) : (
+                          <Text size="sm" c="dimmed">Generating QR...</Text>
+                        )}
                       </Box>
                     </Box>
                   </Center>
                 </Box>
                 <Text size="sm" c="dimmed" ta="center">
-                  Show this QR at the Caspia Bali counter for verification.
+                  Show this QR at the counter for verification.
                 </Text>
-              </Card> */}
+              </Card>
 
               <Card withBorder radius="md" p="xl" bg="white">
                 <Title order={2} size="lg" fw={600} c="#284361" mb="lg">
@@ -378,7 +390,7 @@ export default function BookingConfirmationPage() {
                     <IconUmbrella size={20} color="#284361" style={{ marginTop: 2, flexShrink: 0 }} />
                     <Box style={{ flex: 1 }}>
                       <Text size="sm" c="dimmed">
-                        Contact Caspia staff if weather conditions change.
+                        Contact our staff if weather conditions change.
                       </Text>
                     </Box>
                   </Group>
@@ -388,12 +400,273 @@ export default function BookingConfirmationPage() {
             </Grid.Col>
           </Grid>
 
+          <Box id="pdf-content" ref={pdfRef} style={{ display: 'none' }}>
+            {/* Page 1: E‑Ticket Essentials */}
+            <Box style={{ backgroundColor: 'white', border: '1px solid #e9ecef', borderRadius: 8, padding: 24, breakAfter: 'page', pageBreakAfter: 'always' }}>
+              <Group justify="space-between" align="flex-start" mb="lg">
+                <Stack gap={4}>
+                  <Title order={1} size="2xl" fw={700} c="#284361">E‑Ticket</Title>
+                  <Text c="dimmed">Booking Code</Text>
+                  <Text fw={700} c="#284361">{booking?.bookingCode || booking?.booking_code || '-'}</Text>
+                </Stack>
+                <Box style={{ border: '2px solid #dee2e6', borderRadius: 8, width: 192, height: 192, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'white' }}>
+                  {qrDataUrl ? (
+                    <img src={qrDataUrl} alt="E-Ticket QR" style={{ width: 160, height: 160, objectFit: 'contain', borderRadius: 4 }} />
+                  ) : (
+                    <Text size="sm" c="dimmed">Generating QR...</Text>
+                  )}
+                </Box>
+              </Group>
+              <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" mb="lg">
+                <Box>
+                  <Text size="sm" c="dimmed" mb={4}>Booking Date</Text>
+                  <Text fw={600} c="#284361">{(() => {
+                    const cr = (booking as any)?.created_at ?? (booking as any)?.createdAt ?? null;
+                    return cr ? new Date(cr).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) : '-';
+                  })()}</Text>
+                </Box>
+                <Box>
+                  <Text size="sm" c="dimmed" mb={4}>Passengers</Text>
+                  <Text fw={600} c="#284361">{items.reduce((acc, it: any) => acc + (it.quantity || 0), 0)}</Text>
+                </Box>
+                <Box>
+                  <Text size="sm" c="dimmed" mb={4}>Route</Text>
+                  <Text fw={600} c="#284361">{(() => {
+                    const s = items?.[0]?.product?.fastboatSchedule;
+                    const dep = s?.departureRoute?.name;
+                    const arr = s?.arrivalRoute?.name;
+                    return dep && arr ? `${dep} → ${arr}` : '-';
+                  })()}</Text>
+                </Box>
+                <Box>
+                  <Text size="sm" c="dimmed" mb={4}>Departure Date</Text>
+                  <Text fw={600} c="#284361">{(() => {
+                    const d = booking?.bookingDate;
+                    return d ? new Date(d).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) : '-';
+                  })()}</Text>
+                </Box>
+                <Box>
+                  <Text size="sm" c="dimmed" mb={4}>Departure Time</Text>
+                  <Text fw={600} c="#284361">{(() => {
+                    const s = items?.[0]?.product?.fastboatSchedule;
+                    const depStr = s?.departureTime || s?.departure_time || '';
+                    return depStr || '-';
+                  })()}</Text>
+                </Box>
+                <Box>
+                  <Text size="sm" c="dimmed" mb={4}>Arrival Time</Text>
+                  <Text fw={600} c="#284361">{(() => {
+                    const s = items?.[0]?.product?.fastboatSchedule;
+                    const arrStr = s?.arrivalTime || s?.arrival_time || '';
+                    return arrStr || '-';
+                  })()}</Text>
+                </Box>
+                <Box>
+                  <Text size="sm" c="dimmed" mb={4}>Payment Method</Text>
+                  <Text fw={600} c="#284361">{booking?.paymentMethod || '-'}</Text>
+                </Box>
+                <Box>
+                  <Text size="sm" c="dimmed" mb={4}>Status</Text>
+                  <Group gap="xs">
+                    <IconCheck size={16} color="#2dbe8d" />
+                    <Text fw={600} c="#2dbe8d">{booking?.status === 'PAID' || booking?.status === 'COMPLETED' ? 'Confirmed' : booking?.status}</Text>
+                  </Group>
+                </Box>
+              </SimpleGrid>
+              <Box mt="md" pb="sm">
+                <Text size="lg" fw={600} c="#284361">Passenger Details</Text>
+              </Box>
+              <Table>
+                <Table.Thead>
+                  <Table.Tr style={{ backgroundColor: '#f9fafb' }}>
+                    <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>No.</Table.Th>
+                    <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Name</Table.Th>
+                    <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Age Category</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {bookingItems.map((it: any, idx: number) => {
+                    const parts = String(it.participant_name || '').trim().split(/\s+/).filter(Boolean);
+                    const nm = { first: parts[0] || '', last: parts.slice(1).join(' ') || '' };
+                    const meta = it.meta || {};
+                    return (
+                      <Table.Tr key={it.id || idx}>
+                        <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{idx + 1}</Table.Td>
+                        <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{`${meta.firstName || nm.first || '-'} ${meta.lastName || nm.last || ''}`.trim()}</Table.Td>
+                        <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.ageCategory || '-'}</Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
+                </Table.Tbody>
+              </Table>
+            </Box>
+
+            <Box style={{ backgroundColor: 'white', border: '1px solid #e9ecef', borderRadius: 8, padding: 24 }}>
+              <Title order={1} size="xl" fw={700} c="#284361" mb="md">Page Information</Title>
+              {/* <img
+                src={items?.[0]?.product?.featuredImage || 'https://via.placeholder.com/800x300?text=Fastboat'}
+                alt="Fastboat/Vendor"
+                style={{ width: 240, height: 'auto', borderRadius: 8, marginBottom: 12 }}
+              /> */}
+              {/* <Text size="sm" c="dimmed">
+                {(() => {
+                  const s = items?.[0]?.product?.fastboatSchedule;
+                  const boat = (s as any)?.boat?.name || '';
+                  const t = (booking as any)?.tenant || {};
+                  const vendor = t.vendorName || t.vendor_name || '';
+                  return boat || vendor || '-';
+                })()}
+              </Text> */}
+
+              <Group align="flex-start" gap="md" mb="lg">
+                <img
+                  src={items?.[0]?.product?.featuredImage || 'https://via.placeholder.com/80x80?text=FB'}
+                  alt="Fastboat/Vendor"
+                  style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover' }}
+                />
+                <Box style={{ flex: 1 }}>
+                  <Text fw={500} c="#284361" mb={4}>Fastboat Details</Text>
+                  <Text size="sm" c="dimmed" mb={8}>
+                    {(() => {
+                      const s = items?.[0]?.product?.fastboatSchedule;
+                      const boat = (s as any)?.boat?.name || '';
+                      const t = (booking as any)?.tenant || {};
+                      const vendor = t.vendorName || t.vendor_name || '';
+                      const op = vendor || 'Fastboat Operator';
+                      const bn = boat || 'Boat';
+                      return `Operated by ${op} • ${bn}`;
+                    })()}
+                  </Text>
+                  <Stack gap={4}>
+                    <Text c="dark">• Safe & reliable service</Text>
+                    <Text c="dark">• Check‑in 30 minutes before departure</Text>
+                    <Text c="dark">• Life jackets and basic seating onboard</Text>
+                  </Stack>
+                </Box>
+              </Group>
+
+              <Group align="flex-start" gap="md" mb="lg">
+                <ThemeIcon size={56} radius="md" color="blue" variant="light">
+                  <IconInfoCircle size={28} />
+                </ThemeIcon>
+                <Box style={{ flex: 1 }}>
+                  <Text fw={500} c="#284361" mb={4}>Requirements</Text>
+                  <Text c="dark">• Bawa identitas resmi (KTP/Paspor) saat check‑in</Text>
+                  <Text c="dark">• Tiba minimal 30 menit sebelum jadwal keberangkatan</Text>
+                  <Text c="dark">• Tunjukkan e‑ticket/QR di konter</Text>
+                  <Text c="dark">• Patuhi kebijakan bagasi yang berlaku</Text>
+                </Box>
+              </Group>
+
+              <Group align="flex-start" gap="md" mb="lg">
+                <ThemeIcon size={56} radius="md" color="blue" variant="light">
+                  <IconReceipt size={28} />
+                </ThemeIcon>
+                <Box style={{ flex: 1 }}>
+                  <Text fw={500} c="#284361" mb={4}>How to Refund</Text>
+                  <Text c="dark">• Buka halaman My Bookings</Text>
+                  <Text c="dark">• Pilih booking terkait, klik Refund</Text>
+                  <Text c="dark">• Ikuti alur dan pantau status pengajuan refund</Text>
+                  <Text c="dark">• Refund tunduk pada kebijakan operator</Text>
+                  <Anchor size="sm" c="#284361" fw={500} href="/profile/my-bookings" mt={8}>
+                    Go to My Bookings
+                  </Anchor>
+                </Box>
+              </Group>
+
+              <Group align="flex-start" gap="md">
+                <ThemeIcon size={56} radius="md" color="blue" variant="light">
+                  <IconPhone size={28} />
+                </ThemeIcon>
+                <Box style={{ flex: 1 }}>
+                  <Text fw={500} c="#284361" mb={4}>Help & Support</Text>
+                  <Text c="dark">• Hubungi operator: {(() => {
+                    const t = (booking as any)?.tenant || {};
+                    const phone = t.phoneNumber || t.phone_number || '';
+                    return phone || '-';
+                  })()}</Text>
+                  <Text c="dark">• Kunjungi My Bookings untuk bantuan lanjutan</Text>
+                  <Text c="dark">• Simpan e‑ticket ini untuk keperluan verifikasi</Text>
+                  <Anchor size="sm" c="#284361" fw={500} href="/profile/support-center" mt={8}>
+                    Contact Support
+                  </Anchor>
+                </Box>
+              </Group>
+            </Box>
+            <Box style={{ backgroundColor: 'white', border: '1px solid #e9ecef', borderRadius: 8, padding: 24, breakBefore: 'page', pageBreakBefore: 'always' }}>
+              <Title order={1} size="xl" fw={700} c="#284361" mb="md">Receipt</Title>
+              <Stack gap="md" mb="lg">
+                <Group justify="space-between" align="center">
+                  <Text c="dimmed">Booking Code</Text>
+                  <Text fw={700} c="#284361">{booking?.bookingCode || booking?.booking_code || '-'}</Text>
+                </Group>
+                <Group justify="space-between" align="center">
+                  <Text c="dimmed">Customer</Text>
+                  <Text fw={600} c="#284361">{booking?.customerName || booking?.customerEmail || '-'}</Text>
+                </Group>
+                <Group justify="space-between" align="center">
+                  <Text c="dimmed">Vendor</Text>
+                  <Text fw={600} c="#284361">{(() => {
+                    const t = (booking as any)?.tenant || {};
+                    const vendor = t.vendorName || t.vendor_name || '';
+                    return vendor || '-';
+                  })()}</Text>
+                </Group>
+                <Group justify="space-between" align="center">
+                  <Text c="dimmed">Payment Method</Text>
+                  <Text fw={600} c="#284361">{booking?.paymentMethod || '-'}</Text>
+                </Group>
+                <Group justify="space-between" align="center">
+                  <Text c="dimmed">Invoice</Text>
+                  <Text fw={600} c="#284361">{booking?.xenditInvoiceId || '-'}</Text>
+                </Group>
+                <Group justify="space-between" align="center">
+                  <Text c="dimmed">Paid Amount</Text>
+                  <Text fw={700} c="#284361">{(() => {
+                    const amt = booking?.paidAmount ?? booking?.totalAmount;
+                    if (!amt) return '-';
+                    const n = Number(amt);
+                    return `IDR ${n.toLocaleString('id-ID')}`;
+                  })()}</Text>
+                </Group>
+                <Group justify="space-between" align="center">
+                  <Text c="dimmed">Paid At</Text>
+                  <Text fw={600} c="#284361">{booking?.paidAt ? new Date(booking.paidAt).toLocaleString('id-ID', { hour12: false }) : '-'}</Text>
+                </Group>
+              </Stack>
+              <Stack gap="xs">
+                <Text c="dark">• This receipt is generated electronically.</Text>
+                <Text c="dark">• Keep this document for your records.</Text>
+                <Text c="dark">• For assistance, visit My Bookings or Support Center.</Text>
+              </Stack>
+            </Box>
+          </Box>
+
           {/* Contact Details */}
           <Card withBorder radius="md" p="xl" mb="xl" bg="white">
             <Title order={2} size="xl" fw={600} c="#284361" mb="xl">
               Contact Details
             </Title>
-            <Box style={{ overflowX: 'auto' }}>
+            {isMobile ? (
+              <Stack gap="sm">
+                <Group justify="space-between" align="center">
+                  <Text size="sm" c="dimmed">No.</Text>
+                  <Text size="sm" fw={600} c="#284361">1</Text>
+                </Group>
+                <Group justify="space-between" align="center">
+                  <Text size="sm" c="dimmed">Name</Text>
+                  <Text size="sm" fw={600} c="#284361">{booking?.customerName || '-'}</Text>
+                </Group>
+                <Group justify="space-between" align="center">
+                  <Text size="sm" c="dimmed">Email</Text>
+                  <Text size="sm" c="dark">{booking?.customerEmail || '-'}</Text>
+                </Group>
+                <Group justify="space-between" align="center">
+                  <Text size="sm" c="dimmed">Phone Number</Text>
+                  <Text size="sm" c="dark">{booking?.customerPhone || '-'}</Text>
+                </Group>
+              </Stack>
+            ) : (
               <Table>
                 <Table.Thead>
                   <Table.Tr>
@@ -428,7 +701,7 @@ export default function BookingConfirmationPage() {
                   </Table.Tr>
                 </Table.Tbody>
               </Table>
-            </Box>
+            )}
             <Group gap="xs" mt="lg">
               <ThemeIcon size={16} radius="xl" color="blue" variant="light">
                 <IconInfoCircle size={12} />
@@ -444,41 +717,75 @@ export default function BookingConfirmationPage() {
             <Title order={2} size="xl" fw={600} c="#284361" mb="xl">
               Passenger Details
             </Title>
-            <Box style={{ overflowX: 'auto' }}>
+            {isMobile ? (
+              <Stack gap="sm">
+                {bookingItems.map((it: any, idx: number) => {
+                  const parts = String(it.participant_name || '').trim().split(/\s+/).filter(Boolean);
+                  const nm = { first: parts[0] || '', last: parts.slice(1).join(' ') || '' };
+                  const meta = it.meta || {};
+                  const fullName = `${meta.title ? meta.title + ' ' : ''}${meta.firstName || nm.first || '-'} ${meta.lastName || nm.last || ''}`.trim();
+                  return (
+                    <Box key={it.id || idx} style={{ border: '1px solid #e9ecef', borderRadius: 8, padding: 12 }}>
+                      <Group justify="space-between" align="center">
+                        <Badge color="gray" variant="light" styles={{ root: { borderRadius: 8 } }}>{idx + 1}</Badge>
+                        {meta.ageCategory ? (
+                          <Badge color="blue" variant="light" styles={{ root: { borderRadius: 8 } }}>{meta.ageCategory}</Badge>
+                        ) : null}
+                      </Group>
+                      <Text fw={600} c="#284361" mt={6}>{fullName}</Text>
+                      <SimpleGrid cols={{ base: 2, md: 3 }} spacing="xs" mt={8}>
+                        <Box>
+                          <Text size="xs" c="dimmed">Nationality</Text>
+                          <Text size="sm" c="#111827">{meta.nationality || '-'}</Text>
+                        </Box>
+                        <Box>
+                          <Text size="xs" c="dimmed">Identity Type</Text>
+                          <Text size="sm" c="#111827">{meta.identityType || '-'}</Text>
+                        </Box>
+                        <Box>
+                          <Text size="xs" c="dimmed">ID Number</Text>
+                          <Text size="sm" c="#111827">{meta.idNumber || '-'}</Text>
+                        </Box>
+                      </SimpleGrid>
+                    </Box>
+                  );
+                })}
+              </Stack>
+            ) : (
               <Table>
-                          <Table.Thead>
-                            <Table.Tr style={{ backgroundColor: '#f9fafb' }}>
-                              <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>No.</Table.Th>
-                              <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Title</Table.Th>
-                              <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>First Name</Table.Th>
-                              <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Last Name</Table.Th>
-                              <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Nationality</Table.Th>
-                              <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Identity Type</Table.Th>
-                              <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>ID Number</Table.Th>
-                              <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Age Category</Table.Th>
-                            </Table.Tr>
-                          </Table.Thead>
-                          <Table.Tbody>
-                            {bookingItems.map((it: any, idx: number) => {
-                              const parts = String(it.participant_name || '').trim().split(/\s+/).filter(Boolean);
-                              const nm = { first: parts[0] || '', last: parts.slice(1).join(' ') || '' };
-                              const meta = it.meta || {};
-                              return (
-                                <Table.Tr key={it.id || idx}>
-                                  <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{idx + 1}</Table.Td>
-                                  <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.title || '-'}</Table.Td>
-                                  <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.firstName || nm.first || '-'}</Table.Td>
-                                  <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.lastName || nm.last || '-'}</Table.Td>
-                                  <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.nationality || '-'}</Table.Td>
-                                  <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.identityType || '-'}</Table.Td>
-                                  <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.idNumber || '-'}</Table.Td>
-                                  <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.ageCategory || '-'}</Table.Td>
-                                </Table.Tr>
-                              );
-                            })}
-                          </Table.Tbody>
-                        </Table>
-            </Box>
+                <Table.Thead>
+                  <Table.Tr style={{ backgroundColor: '#f9fafb' }}>
+                    <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>No.</Table.Th>
+                    <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Title</Table.Th>
+                    <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>First Name</Table.Th>
+                    <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Last Name</Table.Th>
+                    <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Nationality</Table.Th>
+                    <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Identity Type</Table.Th>
+                    <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>ID Number</Table.Th>
+                    <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Age Category</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {bookingItems.map((it: any, idx: number) => {
+                    const parts = String(it.participant_name || '').trim().split(/\s+/).filter(Boolean);
+                    const nm = { first: parts[0] || '', last: parts.slice(1).join(' ') || '' };
+                    const meta = it.meta || {};
+                    return (
+                      <Table.Tr key={it.id || idx}>
+                        <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{idx + 1}</Table.Td>
+                        <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.title || '-'}</Table.Td>
+                        <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.firstName || nm.first || '-'}</Table.Td>
+                        <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.lastName || nm.last || '-'}</Table.Td>
+                        <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.nationality || '-'}</Table.Td>
+                        <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.identityType || '-'}</Table.Td>
+                        <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.idNumber || '-'}</Table.Td>
+                        <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.ageCategory || '-'}</Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
+                </Table.Tbody>
+              </Table>
+            )}
             <Group gap="xs" mt="lg">
               <ThemeIcon size={16} radius="xl" color="blue" variant="light">
                 <IconInfoCircle size={12} />

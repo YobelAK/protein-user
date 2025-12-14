@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Paper, Stack, Title, Text, Group, Table, SimpleGrid, Image, Button, TextInput } from '@mantine/core';
+import { Paper, Stack, Title, Text, Group, Table, SimpleGrid, Image, Button, TextInput, Badge, Box } from '@mantine/core';
 import { IconAnchor, IconCalendar, IconClock, IconTicket, IconBriefcase } from '@tabler/icons-react';
+import { useMediaQuery } from '@mantine/hooks';
 
 interface BookingReviewProps {
   promoCode: string;
@@ -15,6 +16,7 @@ export function BookingReview({
   setPromoCode,
   booking
 }: BookingReviewProps) {
+  const isMobile = useMediaQuery('(max-width: 768px)');
   function splitName(full?: string) {
     const parts = String(full || '').trim().split(/\s+/).filter(Boolean);
     return { first: parts[0] || '', last: parts.slice(1).join(' ') || '' };
@@ -116,24 +118,45 @@ export function BookingReview({
         {/* Contact Information */}
         <Stack gap="md">
           <Text size="sm" fw={600} c="dark">Contact Information</Text>
-          <Table>
-            <Table.Thead>
-              <Table.Tr style={{ backgroundColor: '#f9fafb' }}>
-                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>No.</Table.Th>
-                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Name</Table.Th>
-                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Email</Table.Th>
-                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Phone Number</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              <Table.Tr>
-                <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>1</Table.Td>
-                <Table.Td style={{ padding: '12px 16px', color: '#111827', fontWeight: 500 }}>{booking?.customer_name || '-'}</Table.Td>
-                <Table.Td style={{ padding: '12px 16px', color: '#6b7280' }}>{booking?.customer_email || '-'}</Table.Td>
-                <Table.Td style={{ padding: '12px 16px', color: '#6b7280' }}>{booking?.customer_phone || '-'}</Table.Td>
-              </Table.Tr>
-            </Table.Tbody>
-          </Table>
+          {isMobile ? (
+            <Stack gap="sm">
+              <Group justify="space-between" align="center">
+                <Text size="sm" c="dimmed">No.</Text>
+                <Text size="sm" fw={600} c="#284361">1</Text>
+              </Group>
+              <Group justify="space-between" align="center">
+                <Text size="sm" c="dimmed">Name</Text>
+                <Text size="sm" fw={600} c="#284361">{booking?.customer_name || '-'}</Text>
+              </Group>
+              <Group justify="space-between" align="center">
+                <Text size="sm" c="dimmed">Email</Text>
+                <Text size="sm" c="dark">{booking?.customer_email || '-'}</Text>
+              </Group>
+              <Group justify="space-between" align="center">
+                <Text size="sm" c="dimmed">Phone Number</Text>
+                <Text size="sm" c="dark">{booking?.customer_phone || '-'}</Text>
+              </Group>
+            </Stack>
+          ) : (
+            <Table>
+              <Table.Thead>
+                <Table.Tr style={{ backgroundColor: '#f9fafb' }}>
+                  <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>No.</Table.Th>
+                  <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Name</Table.Th>
+                  <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Email</Table.Th>
+                  <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Phone Number</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                <Table.Tr>
+                  <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>1</Table.Td>
+                  <Table.Td style={{ padding: '12px 16px', color: '#111827', fontWeight: 500 }}>{booking?.customer_name || '-'}</Table.Td>
+                  <Table.Td style={{ padding: '12px 16px', color: '#6b7280' }}>{booking?.customer_email || '-'}</Table.Td>
+                  <Table.Td style={{ padding: '12px 16px', color: '#6b7280' }}>{booking?.customer_phone || '-'}</Table.Td>
+                </Table.Tr>
+              </Table.Tbody>
+            </Table>
+          )}
           <Group gap="md">
             <Text size="sm" c="dark">Number of Passengers: {passengerCount}</Text>
             <Text size="sm" c="dark">Special Request: {booking?.customer_notes || '-'}</Text>
@@ -143,38 +166,75 @@ export function BookingReview({
         {/* Passenger Details */}
         <Stack gap="md">
           <Text size="sm" fw={600} c="dark">Passenger Details</Text>
-          <Table>
-            <Table.Thead>
-              <Table.Tr style={{ backgroundColor: '#f9fafb' }}>
-                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>No.</Table.Th>
-                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Title</Table.Th>
-                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>First Name</Table.Th>
-                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Last Name</Table.Th>
-                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Nationality</Table.Th>
-                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Identity Type</Table.Th>
-                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>ID Number</Table.Th>
-                <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Age Category</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
+          {isMobile ? (
+            <Stack gap="sm">
               {(booking?.booking_items || []).map((it: any, idx: number) => {
                 const nm = splitName(it.participant_name);
                 const meta = it.meta || {};
+                const fullName = `${meta.title ? meta.title + ' ' : ''}${meta.firstName || nm.first || '-'} ${meta.lastName || nm.last || ''}`.trim();
                 return (
-                  <Table.Tr key={it.id}>
-                    <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{idx + 1}</Table.Td>
-                    <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.title || '-'}</Table.Td>
-                    <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.firstName || nm.first || '-'}</Table.Td>
-                    <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.lastName || nm.last || '-'}</Table.Td>
-                    <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.nationality || '-'}</Table.Td>
-                    <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.identityType || '-'}</Table.Td>
-                    <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.idNumber || '-'}</Table.Td>
-                    <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.ageCategory || '-'}</Table.Td>
-                  </Table.Tr>
+                  <Paper key={it.id || idx} withBorder p="md" radius="md">
+                    <Stack gap="xs">
+                      <Group justify="space-between" align="center">
+                        <Badge color="gray" variant="light" styles={{ root: { borderRadius: 8 } }}>{idx + 1}</Badge>
+                        {meta.ageCategory ? (
+                          <Badge color="blue" variant="light" styles={{ root: { borderRadius: 8 } }}>{meta.ageCategory}</Badge>
+                        ) : null}
+                      </Group>
+                      <Text fw={600} c="#284361">{fullName}</Text>
+                      <SimpleGrid cols={{ base: 2, md: 3 }} spacing="xs">
+                        <Box>
+                          <Text size="xs" c="dimmed">Nationality</Text>
+                          <Text size="sm" c="#111827">{meta.nationality || '-'}</Text>
+                        </Box>
+                        <Box>
+                          <Text size="xs" c="dimmed">Identity Type</Text>
+                          <Text size="sm" c="#111827">{meta.identityType || '-'}</Text>
+                        </Box>
+                        <Box>
+                          <Text size="xs" c="dimmed">ID Number</Text>
+                          <Text size="sm" c="#111827">{meta.idNumber || '-'}</Text>
+                        </Box>
+                      </SimpleGrid>
+                    </Stack>
+                  </Paper>
                 );
               })}
-            </Table.Tbody>
-          </Table>
+            </Stack>
+          ) : (
+            <Table>
+              <Table.Thead>
+                <Table.Tr style={{ backgroundColor: '#f9fafb' }}>
+                  <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>No.</Table.Th>
+                  <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Title</Table.Th>
+                  <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>First Name</Table.Th>
+                  <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Last Name</Table.Th>
+                  <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Nationality</Table.Th>
+                  <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Identity Type</Table.Th>
+                  <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>ID Number</Table.Th>
+                  <Table.Th style={{ padding: '8px 16px', color: '#6b7280', fontWeight: 500 }}>Age Category</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {(booking?.booking_items || []).map((it: any, idx: number) => {
+                  const nm = splitName(it.participant_name);
+                  const meta = it.meta || {};
+                  return (
+                    <Table.Tr key={it.id}>
+                      <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{idx + 1}</Table.Td>
+                      <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.title || '-'}</Table.Td>
+                      <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.firstName || nm.first || '-'}</Table.Td>
+                      <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.lastName || nm.last || '-'}</Table.Td>
+                      <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.nationality || '-'}</Table.Td>
+                      <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.identityType || '-'}</Table.Td>
+                      <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.idNumber || '-'}</Table.Td>
+                      <Table.Td style={{ padding: '12px 16px', color: '#111827' }}>{meta.ageCategory || '-'}</Table.Td>
+                    </Table.Tr>
+                  );
+                })}
+              </Table.Tbody>
+            </Table>
+          )}
         </Stack>
 
         {/* Additional Packages */}

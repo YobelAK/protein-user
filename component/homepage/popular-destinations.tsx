@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Box,
   Container,
@@ -27,6 +27,9 @@ export function PopularDestinations() {
   const [mounted, setMounted] = useState(true);
   const [anim, setAnim] = useState<'slide-left' | 'slide-right'>('slide-right');
   const pendingOffset = React.useRef<number | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -50,7 +53,15 @@ export function PopularDestinations() {
     return () => { mounted = false };
   }, []);
 
-  const visible = destinations.slice(offset, Math.min(offset + 4, destinations.length));
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  const visible = destinations.slice(offset, Math.min(offset + (isMobile ? 1 : 4), destinations.length));
 
   function formatIdr(n: number) {
     try { return `Rp ${new Intl.NumberFormat('id-ID').format(Math.round(n))}` } catch { return `Rp ${n}` }
@@ -88,13 +99,13 @@ export function PopularDestinations() {
               size="lg"
               style={{ borderColor: '#dee2e6', backgroundColor: 'white' }}
               onClick={() => {
-                const maxOffset = Math.max(0, destinations.length - 4);
-                if (destinations.length <= 4 || offset >= maxOffset || !mounted) return;
+                const maxOffset = Math.max(0, destinations.length - (isMobile ? 1 : 4));
+                if (destinations.length <= (isMobile ? 1 : 4) || offset >= maxOffset || !mounted) return;
                 setAnim('slide-left');
                 pendingOffset.current = Math.min(maxOffset, offset + 1);
                 setMounted(false);
               }}
-              disabled={destinations.length <= 4 || offset >= Math.max(0, destinations.length - 4) || !mounted}
+              disabled={destinations.length <= (isMobile ? 1 : 4) || offset >= Math.max(0, destinations.length - (isMobile ? 1 : 4)) || !mounted}
             >
               <IconChevronRight size={20} />
             </ActionIcon>
@@ -108,7 +119,33 @@ export function PopularDestinations() {
           }
         }}>
           {(styles: React.CSSProperties) => (
-            <Box style={{ ...styles }}>
+            <Box
+              style={{ ...styles }}
+              onTouchStart={(e) => {
+                if (!isMobile) return;
+                touchStartX.current = e.changedTouches[0]?.clientX ?? null;
+              }}
+              onTouchEnd={(e) => {
+                if (!isMobile) return;
+                touchEndX.current = e.changedTouches[0]?.clientX ?? null;
+                if (touchStartX.current != null && touchEndX.current != null) {
+                  const dx = touchEndX.current - touchStartX.current;
+                  const threshold = 40;
+                  const maxOffset = Math.max(0, destinations.length - 1);
+                  if (dx < -threshold && offset < maxOffset) {
+                    setAnim('slide-left');
+                    pendingOffset.current = Math.min(maxOffset, offset + 1);
+                    setMounted(false);
+                  } else if (dx > threshold && offset > 0) {
+                    setAnim('slide-right');
+                    pendingOffset.current = Math.max(0, offset - 1);
+                    setMounted(false);
+                  }
+                }
+                touchStartX.current = null;
+                touchEndX.current = null;
+              }}
+            >
               <Grid>
                 {visible.map((destination) => (
                   <GridCol key={destination.id} span={{ base: 12, md: 6, lg: 3 }}>
@@ -122,11 +159,11 @@ export function PopularDestinations() {
                         ':hover': { boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }
                       }}
                     >
-                      <CardSection style={{ position: 'relative', height: '224px' }}>
+                      <CardSection style={{ position: 'relative', height: isMobile ? '200px' : '224px' }}>
                         <Image
                           src={destination.image || ''}
                           alt={destination.title}
-                          h={224}
+                          h={isMobile ? 200 : 224}
                           style={{ objectFit: 'cover' }}
                         />
                         <Badge
@@ -173,6 +210,21 @@ export function PopularDestinations() {
                   </GridCol>
                 ))}
               </Grid>
+              {isMobile && (
+                <Group justify="center" mt="md" gap={6}>
+                  {destinations.map((_, i) => (
+                    <Box
+                      key={i}
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: 6,
+                        backgroundColor: i === offset ? '#284361' : '#cbd5e1'
+                      }}
+                    />
+                  ))}
+                </Group>
+              )}
             </Box>
           )}
         </Transition>

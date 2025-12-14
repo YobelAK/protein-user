@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Box, 
   Container, 
@@ -21,6 +21,15 @@ export function Newsletter() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +57,7 @@ export function Newsletter() {
   };
 
   return (
-    <Box style={{ backgroundColor: '#f8f9fa', paddingTop: '64px', paddingBottom: '64px' }}>
+    <Box style={{ backgroundColor: '#f8f9fa', paddingTop: '48px', paddingBottom: '48px' }}>
       <Container size="xl" style={{ padding: '0px 16px' }}>
         <Paper 
           radius="xl" 
@@ -61,7 +70,7 @@ export function Newsletter() {
             <Grid.Col span={{ base: 12, lg: 6 }}>
               <Stack 
                 gap="lg" 
-                p={{ base: 'xl', lg: '3rem' }}
+                p={{ base: isMobile ? 'lg' : 'xl', lg: '3rem' }}
                 justify="center"
                 style={{ height: '100%' }}
               >
@@ -131,19 +140,21 @@ export function Newsletter() {
                 </Text>
               </Stack>
             </Grid.Col>
-            <Grid.Col span={{ base: 12, lg: 6 }}>
-              <Box style={{ position: 'relative', height: '425px' }}>
-                <Image
-                  src="https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=800&q=80"
-                  alt="Island paradise"
-                  style={{ 
-                    width: '100%', 
-                    height: '100%', 
-                    objectFit: 'cover' 
-                  }}
-                />
-              </Box>
-            </Grid.Col>
+            {!isMobile && (
+              <Grid.Col span={{ base: 12, lg: 6 }}>
+                <Box style={{ position: 'relative', height: '425px' }}>
+                  <Image
+                    src="https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=800&q=80"
+                    alt="Island paradise"
+                    style={{ 
+                      width: '100%', 
+                      height: '100%', 
+                      objectFit: 'cover' 
+                    }}
+                  />
+                </Box>
+              </Grid.Col>
+            )}
           </Grid>
         </Paper>
       </Container>

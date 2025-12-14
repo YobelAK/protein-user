@@ -11,6 +11,7 @@ import { PaymentSummary } from '@/components/speedboat/payment-summary';
 import { PaymentMethodSelector } from '@/components/speedboat/payment-method-selector';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
+import QRCode from 'qrcode';
 
 export default function PaymentPage() {
   const router = useRouter();
@@ -29,12 +30,15 @@ export default function PaymentPage() {
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvn, setCardCvn] = useState('');
   const [cardName, setCardName] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
   const cardReady = (() => {
     if (selectedPaymentMethod !== 'credit-card') return true;
     return !!(cardNumber && cardExpiry && cardCvn && cardName);
   })();
   const timers = useRef<Record<number, ReturnType<typeof setInterval> | undefined>>({});
   const singleTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [readyRefreshMap, setReadyRefreshMap] = useState<Record<number, { xid?: string }>>({});
+  const [readyRefreshSingle, setReadyRefreshSingle] = useState<{ xid?: string } | null>(null);
 
   const statusLabel = (b: any) => {
     const s = String(b?.status || '').toUpperCase();
@@ -201,7 +205,9 @@ export default function PaymentPage() {
   }, []);
 
   const handlePayment = async (index?: number) => {
+    if (isProcessing) return;
     try {
+      setIsProcessing(true);
       if (bookings && bookings.length > 1) {
         const idx = typeof index === 'number' ? index : 0;
         const b = bookings[idx];
@@ -211,68 +217,23 @@ export default function PaymentPage() {
           const createRes = await fetch('/api/payments/qris/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: id }) });
           if (!createRes.ok) return;
           const j = await createRes.json();
-          setQrMap((prev) => ({ ...prev, [idx]: { qrString: j?.qrString || '', qrImageUrl: j?.qrImageUrl || '' } }));
-          if (timers.current && timers.current[idx]) { try { clearInterval(timers.current[idx]); } catch {}
+          try {
+            const origin = typeof window !== 'undefined' ? window.location.origin : '';
+            const dummyUrl = `${origin}/speedboat/book/payment/dummy-qris?code=${encodeURIComponent(b?.booking_code || '')}&xid=${encodeURIComponent(j?.xenditId || '')}`;
+            const dataUrl = await QRCode.toDataURL(dummyUrl, { width: 256, margin: 1 });
+            setQrMap((prev) => ({ ...prev, [idx]: { qrString: dummyUrl, qrImageUrl: dataUrl } }));
+          } catch {
+            setQrMap((prev) => ({ ...prev, [idx]: { qrString: j?.qrString || '', qrImageUrl: j?.qrImageUrl || '' } }));
           }
-          timers.current[idx] = setInterval(async () => {
-            try {
-              const s = await fetch(`/api/payments/status?bookingId=${encodeURIComponent(id)}`, { cache: 'no-store' });
-              if (s.ok) {
-                const sj = await s.json();
-                const st = String(sj?.status || '').toUpperCase();
-                if (st === 'PAID') {
-                  try { clearInterval(timers.current[idx]); } catch {}
-                  timers.current[idx] = undefined;
-                  setBookings((prev) => {
-                    const copy = [...prev];
-                    copy[idx] = { ...copy[idx], status: 'PAID' };
-                    return copy;
-                  });
-                  const allPaid = (arr: any[]) => arr.every((bb: any) => String(bb?.status || '').toUpperCase() === 'PAID' || String(bb?.status || '').toUpperCase() === 'COMPLETED');
-                  const shouldRedirect = allPaid((Array.isArray(bookings) ? bookings : []).map((bb, i) => (i === idx ? { ...bb, status: 'PAID' } : bb)));
-                  if (shouldRedirect) {
-                    router.push('/profile/my-bookings');
-                  }
-                }
-                if (st === 'EXPIRED') {
-                  try { clearInterval(timers.current[idx]); } catch {}
-                  timers.current[idx] = undefined;
-                  setBookings((prev) => {
-                    const copy = [...prev];
-                    copy[idx] = { ...copy[idx], status: 'EXPIRED' };
-                    return copy;
-                  });
-                }
-              }
-            } catch {}
-          }, 3000);
+          setReadyRefreshMap((prev) => ({ ...prev, [idx]: { xid: j?.xenditId || '' } }));
           return;
         }
         if (selectedPaymentMethod === 'virtual-account') {
-          const paidAmount = b?.total_amount ?? b?.totalAmount ?? 0;
-          const invId = `INV-VA-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-          await fetch('/api/bookings', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'pay',
-              id,
-              paymentMethod: 'VIRTUAL_ACCOUNT',
-              xenditPaymentChannel: selectedVaBank || 'VA',
-              xenditInvoiceId: invId,
-              paidAmount,
-            }),
-          });
-          setBookings((prev) => {
-            const copy = [...prev];
-            copy[idx] = { ...copy[idx], status: 'PAID' };
-            return copy;
-          });
-          const allPaid = (arr: any[]) => arr.every((bb: any) => String(bb?.status || '').toUpperCase() === 'PAID' || String(bb?.status || '').toUpperCase() === 'COMPLETED');
-          const shouldRedirect = allPaid((Array.isArray(bookings) ? bookings : []).map((bb, i) => (i === idx ? { ...bb, status: 'PAID' } : bb)));
-          if (shouldRedirect) {
-            router.push('/profile/my-bookings');
-          }
+          const createRes = await fetch('/api/payments/va/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: id, bankCode: selectedVaBank }) });
+          if (!createRes.ok) return;
+          const j = await createRes.json();
+          setVaMap((prev) => ({ ...prev, [idx]: { accountNumber: j?.accountNumber || '', bankCode: j?.bankCode || '' } }));
+          setReadyRefreshMap((prev) => ({ ...prev, [idx]: { xid: j?.xenditId || '' } }));
           return;
         }
         if (selectedPaymentMethod === 'credit-card') {
@@ -291,30 +252,15 @@ export default function PaymentPage() {
           if (expDate < now) { window.alert('Kartu sudah kedaluwarsa'); return; }
           if (!/^\d{3,4}$/.test(cvn)) { window.alert('CVV harus 3–4 digit angka'); return; }
           if (!name) { window.alert('Nama pemegang kartu wajib diisi'); return; }
-          const paidAmount = b?.total_amount ?? b?.totalAmount ?? 0;
-          const invId = `INV-CC-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-          await fetch('/api/bookings', {
-            method: 'PUT',
+          const createRes = await fetch('/api/payments/card/create', {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'pay',
-              id,
-              paymentMethod: 'CREDIT_CARD',
-              xenditPaymentChannel: 'CREDIT_CARD',
-              xenditInvoiceId: invId,
-              paidAmount,
-            }),
+            body: JSON.stringify({ bookingId: id, cardNumber: num, cardExpMonth: mm, cardExpYear: year, cardCvn: cvn, cardName: name }),
           });
-          setBookings((prev) => {
-            const copy = [...prev];
-            copy[idx] = { ...copy[idx], status: 'PAID' };
-            return copy;
-          });
-          const allPaid = (arr: any[]) => arr.every((bb: any) => String(bb?.status || '').toUpperCase() === 'PAID' || String(bb?.status || '').toUpperCase() === 'COMPLETED');
-          const shouldRedirect = allPaid((Array.isArray(bookings) ? bookings : []).map((bb, i) => (i === idx ? { ...bb, status: 'PAID' } : bb)));
-          if (shouldRedirect) {
-            router.push('/profile/my-bookings');
-          }
+          if (!createRes.ok) return;
+          const j = await createRes.json();
+          // if (j?.requiresAction && j?.redirectUrl) { try { window.open(String(j.redirectUrl), '_blank'); } catch {} }
+          setReadyRefreshMap((prev) => ({ ...prev, [idx]: { xid: j?.xenditId || '' } }));
           return;
         }
         const paidAmount = b?.total_amount ?? b?.totalAmount ?? 0;
@@ -354,49 +300,23 @@ export default function PaymentPage() {
         const createRes = await fetch('/api/payments/qris/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: id }) });
         if (!createRes.ok) return;
         const j = await createRes.json();
-        setQrSingle({ qrString: j?.qrString || '', qrImageUrl: j?.qrImageUrl || '' });
-        if (singleTimer.current) { try { clearInterval(singleTimer.current); } catch {} }
-        singleTimer.current = setInterval(async () => {
-          try {
-            const s = await fetch(`/api/payments/status?bookingId=${encodeURIComponent(id)}`, { cache: 'no-store' });
-            if (s.ok) {
-              const sj = await s.json();
-              const st = String(sj?.status || '').toUpperCase();
-              if (st === 'PAID') {
-                try { if (singleTimer.current) { clearInterval(singleTimer.current); } } catch {}
-                singleTimer.current = null;
-                const qs = new URLSearchParams();
-                qs.set('id', String(id));
-                router.push(`/speedboat/book/ticket?${qs.toString()}`);
-              }
-              if (st === 'EXPIRED') {
-                try { if (singleTimer.current) { clearInterval(singleTimer.current); } } catch {}
-                singleTimer.current = null;
-              }
-            }
-          } catch {}
-        }, 3000);
+        try {
+          const origin = typeof window !== 'undefined' ? window.location.origin : '';
+          const dummyUrl = `${origin}/speedboat/book/payment/dummy-qris?code=${encodeURIComponent(booking?.booking_code || '')}&xid=${encodeURIComponent(j?.xenditId || '')}`;
+          const dataUrl = await QRCode.toDataURL(dummyUrl, { width: 256, margin: 1 });
+          setQrSingle({ qrString: dummyUrl, qrImageUrl: dataUrl });
+        } catch {
+          setQrSingle({ qrString: j?.qrString || '', qrImageUrl: j?.qrImageUrl || '' });
+        }
+        setReadyRefreshSingle({ xid: j?.xenditId || '' });
         return;
       }
       if (selectedPaymentMethod === 'virtual-account') {
-        const paidAmount = booking?.total_amount ?? booking?.totalAmount ?? 0;
-        const invId = `INV-VA-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-        const res = await fetch('/api/bookings', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'pay',
-            id,
-            paymentMethod: 'VIRTUAL_ACCOUNT',
-            xenditPaymentChannel: selectedVaBank || 'VA',
-            xenditInvoiceId: invId,
-            paidAmount,
-          }),
-        });
-        if (!res.ok) return;
-        const qs = new URLSearchParams();
-        qs.set('id', String(id));
-        router.push(`/speedboat/book/ticket?${qs.toString()}`);
+        const createRes = await fetch('/api/payments/va/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: id, bankCode: selectedVaBank }) });
+        if (!createRes.ok) return;
+        const j = await createRes.json();
+        setVaSingle({ accountNumber: j?.accountNumber || '', bankCode: j?.bankCode || '' });
+        setReadyRefreshSingle({ xid: j?.xenditId || '' });
         return;
       }
       if (selectedPaymentMethod === 'credit-card') {
@@ -415,24 +335,15 @@ export default function PaymentPage() {
         if (expDate < now) { window.alert('Kartu sudah kedaluwarsa'); return; }
         if (!/^\d{3,4}$/.test(cvn)) { window.alert('CVV harus 3–4 digit angka'); return; }
         if (!name) { window.alert('Nama pemegang kartu wajib diisi'); return; }
-        const paidAmount = booking?.total_amount ?? booking?.totalAmount ?? 0;
-        const invId = `INV-CC-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-        const res = await fetch('/api/bookings', {
-          method: 'PUT',
+        const createRes = await fetch('/api/payments/card/create', {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'pay',
-            id,
-            paymentMethod: 'CREDIT_CARD',
-            xenditPaymentChannel: 'CREDIT_CARD',
-            xenditInvoiceId: invId,
-            paidAmount,
-          }),
+          body: JSON.stringify({ bookingId: id, cardNumber: num, cardExpMonth: mm, cardExpYear: year, cardCvn: cvn, cardName: name }),
         });
-        if (!res.ok) return;
-        const qs = new URLSearchParams();
-        qs.set('id', String(id));
-        router.push(`/speedboat/book/ticket?${qs.toString()}`);
+        if (!createRes.ok) return;
+        const j = await createRes.json();
+        // if (j?.requiresAction && j?.redirectUrl) { try { window.open(String(j.redirectUrl), '_blank'); } catch {} }
+        setReadyRefreshSingle({ xid: j?.xenditId || '' });
         return;
       }
       const paidAmount = booking?.total_amount ?? booking?.totalAmount ?? 0;
@@ -440,6 +351,63 @@ export default function PaymentPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'pay', id, paymentMethod: selectedPaymentMethod, paidAmount }),
+      });
+      if (!res.ok) return;
+      const qs = new URLSearchParams();
+      qs.set('id', String(id));
+      router.push(`/speedboat/book/ticket?${qs.toString()}`);
+    } catch {}
+    finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const refreshPaidMulti = async (idx: number) => {
+    try {
+      const b = bookings[idx];
+      const id = b?.id;
+      if (!id) return;
+      const paidAmount = b?.total_amount ?? b?.totalAmount ?? 0;
+      const xid = (readyRefreshMap[idx] || {}).xid || undefined;
+      const channel = selectedPaymentMethod === 'virtual-account' ? ((vaMap[idx] || {}).bankCode || 'VA') : (selectedPaymentMethod === 'credit-card' ? 'CREDIT_CARD' : 'QRIS');
+      await fetch('/api/bookings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'pay',
+          id,
+          paymentMethod: selectedPaymentMethod,
+          xenditPaymentChannel: channel,
+          xenditInvoiceId: xid,
+          paidAmount,
+        }),
+      });
+      const allPaid = (arr: any[]) => arr.every((bb: any) => String(bb?.status || '').toUpperCase() === 'PAID' || String(bb?.status || '').toUpperCase() === 'COMPLETED');
+      const shouldRedirect = allPaid((Array.isArray(bookings) ? bookings : []).map((bb, i) => (i === idx ? { ...bb, status: 'PAID' } : bb)));
+      if (shouldRedirect) {
+        router.push('/profile/my-bookings');
+      }
+    } catch {}
+  };
+
+  const refreshPaidSingle = async () => {
+    try {
+      const id = booking?.id;
+      if (!id) return;
+      const paidAmount = booking?.total_amount ?? booking?.totalAmount ?? 0;
+      const xid = readyRefreshSingle?.xid || undefined;
+      const channel = selectedPaymentMethod === 'virtual-account' ? (vaSingle?.bankCode || 'VA') : (selectedPaymentMethod === 'credit-card' ? 'CREDIT_CARD' : 'QRIS');
+      const res = await fetch('/api/bookings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'pay',
+          id,
+          paymentMethod: selectedPaymentMethod,
+          xenditPaymentChannel: channel,
+          xenditInvoiceId: xid,
+          paidAmount,
+        }),
       });
       if (!res.ok) return;
       const qs = new URLSearchParams();
@@ -549,7 +517,8 @@ export default function PaymentPage() {
                               qrImageUrl={(qrMap[0] || {}).qrImageUrl}
                               vaNumber={(vaMap[0] || {}).accountNumber}
                               vaBankCode={(vaMap[0] || {}).bankCode}
-                              disabled={!cardReady && selectedPaymentMethod === 'credit-card'}
+                              disabled={(!cardReady && selectedPaymentMethod === 'credit-card') || isProcessing}
+                              onRefresh={readyRefreshMap[0] ? () => refreshPaidMulti(0) : undefined}
                             />
                           </Box>
                         </Collapse>
@@ -577,7 +546,8 @@ export default function PaymentPage() {
                               qrImageUrl={(qrMap[1] || {}).qrImageUrl}
                               vaNumber={(vaMap[1] || {}).accountNumber}
                               vaBankCode={(vaMap[1] || {}).bankCode}
-                              disabled={!cardReady && selectedPaymentMethod === 'credit-card'}
+                              disabled={(!cardReady && selectedPaymentMethod === 'credit-card') || isProcessing}
+                              onRefresh={readyRefreshMap[1] ? () => refreshPaidMulti(1) : undefined}
                             />
                           </Box>
                         </Collapse>
@@ -594,7 +564,8 @@ export default function PaymentPage() {
                     qrImageUrl={(qrSingle || {}).qrImageUrl}
                     vaNumber={(vaSingle || {}).accountNumber}
                     vaBankCode={(vaSingle || {}).bankCode}
-                    disabled={!cardReady && selectedPaymentMethod === 'credit-card'}
+                    disabled={(!cardReady && selectedPaymentMethod === 'credit-card') || isProcessing}
+                    onRefresh={readyRefreshSingle ? refreshPaidSingle : undefined}
                   />
                 )}
               </Box>

@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Container, Box, Title, Text, Group, Stack, Drawer, Button, Affix, Paper, Divider } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
+import { Container, Box, Title, Text, Group, Stack, Drawer, Button, Affix, Paper, Divider, Modal } from '@mantine/core';
+import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import { IconFilter } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
@@ -84,6 +84,23 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
   const [inboundSel, setInboundSel] = useState<any | null>(null);
   const [routeOrigins, setRouteOrigins] = useState<Array<{ value: string; label: string }>>([]);
   const [routeDestinations, setRouteDestinations] = useState<Array<{ value: string; label: string }>>([]);
+  const isMobile = useMediaQuery('(max-width: 48em)');
+  const [hasOpenedCartOnce, setHasOpenedCartOnce] = useState(false);
+  const [touchStartFilter, setTouchStartFilter] = useState<{ x: number; y: number } | null>(null);
+  const [touchStartCart, setTouchStartCart] = useState<{ x: number; y: number } | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const [hasShownOutboundPopup, setHasShownOutboundPopup] = useState(false);
+  const [hasShownReturnPopup, setHasShownReturnPopup] = useState(false);
+  const [infoOpened, { open: openInfo, close: closeInfo }] = useDisclosure(false);
+
+  useEffect(() => {
+    if (infoOpened) {
+      const t = setTimeout(() => {
+        closeInfo();
+      }, 1800);
+      return () => clearTimeout(t);
+    }
+  }, [infoOpened]);
 
   useEffect(() => {
     const load = async () => {
@@ -158,16 +175,24 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
       const inRaw = typeof window !== 'undefined' ? (localStorage.getItem('rt_inbound_selected') || '') : '';
       setOutboundSel(outRaw ? JSON.parse(outRaw) : null);
       setInboundSel(inRaw ? JSON.parse(inRaw) : null);
-      if (outRaw) openCart();
+      if (outRaw && !hasShownOutboundPopup) {
+        setInfoMessage('Ticket added to cart');
+        openInfo();
+        setHasShownOutboundPopup(true);
+      }
     } catch {}
-  }, [searchParams]);
+  }, [searchParams, hasOpenedCartOnce]);
 
   useEffect(() => {
     const onInboundSelected = () => {
       try {
         const inRaw = typeof window !== 'undefined' ? (localStorage.getItem('rt_inbound_selected') || '') : '';
         setInboundSel(inRaw ? JSON.parse(inRaw) : null);
-        openCart();
+        if (!hasShownReturnPopup) {
+          setInfoMessage('Check the cart to proceed with booking');
+          openInfo();
+          setHasShownReturnPopup(true);
+        }
       } catch {}
     };
     if (typeof window !== 'undefined') {
@@ -481,7 +506,23 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
           Filter Speedboats
         </Button>
       </Box>
-      <Drawer opened={sidebarOpened} onClose={close} title="Filters" size="md" padding="md">
+      <Drawer
+        opened={sidebarOpened}
+        onClose={close}
+        title="Filters"
+        position={isMobile ? 'bottom' : 'right'}
+        size={isMobile ? 'auto' : 'md'}
+        padding={isMobile ? 'sm' : 'md'}
+        overlayProps={{ opacity: 0, blur: 0 }}
+        withinPortal={false}
+        styles={{
+          content: {
+            borderTopLeftRadius: isMobile ? 16 : undefined,
+            borderTopRightRadius: isMobile ? 16 : undefined,
+            height: isMobile ? '65vh' : undefined,
+          },
+        }}
+      >
         <FilterSidebar
           providers={providers}
           selectedProviders={selectedProviders}
@@ -491,6 +532,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
           sortBy={sortBy}
           onToggleSort={setSortBy}
           onApply={() => { applyFilters(); close(); }}
+          fullWidth
         />
       </Drawer>
 
@@ -501,10 +543,22 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
         closeOnClickOutside={true}
         onClose={closeCart}
         title="Trip Cart"
-        size="md"
+        position={isMobile ? 'left' : 'right'}
+        size={isMobile ? '85%' : 'md'}
         padding="md"
+        overlayProps={{ opacity: isMobile ? 0.15 : 0.35 }}
       >
-        <Stack gap="md">
+        <Stack
+          gap="md"
+          onTouchStart={(e) => { const t = e.touches?.[0]; if (t) setTouchStartCart({ x: t.clientX, y: t.clientY }); }}
+          onTouchMove={(e) => {
+            if (!touchStartCart) return;
+            const t = e.touches?.[0];
+            if (!t) return;
+            const dx = t.clientX - touchStartCart.x;
+            if (dx < -50) { closeCart(); setTouchStartCart(null); }
+          }}
+        >
           <Paper radius="md" p="md" withBorder>
             <Stack gap={6}>
               <Group justify="space-between">
@@ -544,6 +598,29 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
           </Group>
         </Stack>
       </Drawer>
+      <Modal
+        opened={infoOpened}
+        onClose={closeInfo}
+        centered
+        withCloseButton={false}
+        styles={{
+          content: {
+            width: 'auto',
+            maxWidth: '300px',
+            padding: '24px'
+          }
+        }}
+      >
+        <Box style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <svg width="96" height="96" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="45" fill="#e8f7f0" />
+            <path d="M28 52 L44 68 L74 38" stroke="#2dbe8d" strokeWidth="8" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="100" strokeDashoffset="100">
+              <animate attributeName="stroke-dashoffset" from="100" to="0" dur="0.8s" fill="freeze" />
+            </path>
+          </svg>
+          <Text fw={700} c="#0f5132">{infoMessage || ''}</Text>
+        </Box>
+      </Modal>
 
       <Container size="xl" py="xl">
         <Group align="flex-start" gap="xl">

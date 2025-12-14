@@ -26,74 +26,136 @@ export function ProgressIndicator({ currentStep }: ProgressIndicatorProps) {
   ];
 
   return (
-    <Box 
-      style={{ 
-        backgroundColor: 'white', 
-        borderBottom: '1px solid #dee2e6', 
-        padding: '32px 0' 
-      }}
-    >
-      <Container size="md">
-        <Group justify="space-between" align="center">
-          {steps.map((step, index) => (
-            <Fragment key={step.number}>
-              <Group gap="sm" align="center">
-                <ThemeIcon
-                  size={40}
-                  radius="xl"
-                  color={
-                    step.number === currentStep || step.number < currentStep
-                      ? '#284361'
-                      : 'gray'
-                  }
-                  variant="filled"
-                  style={{
-                    backgroundColor: 
+    <>
+      <Box 
+        visibleFrom="md"
+        style={{ 
+          backgroundColor: 'white', 
+          borderBottom: '1px solid #dee2e6', 
+          padding: '32px 0' 
+        }}
+      >
+        <Container size="md">
+          <Group justify="space-between" align="center">
+            {steps.map((step, index) => (
+              <Fragment key={step.number}>
+                <Group gap="sm" align="center">
+                  <ThemeIcon
+                    size={40}
+                    radius="xl"
+                    color={
                       step.number === currentStep || step.number < currentStep
                         ? '#284361'
-                        : '#e9ecef',
-                    color: 
-                      step.number === currentStep || step.number < currentStep
-                        ? 'white'
-                        : '#6c757d'
-                  }}
-                >
-                  {step.number < currentStep ? (
-                    <IconCheck size={20} />
-                  ) : (
-                    step.number
-                  )}
-                </ThemeIcon>
-                <Text
-                  size="sm"
-                  fw={500}
-                  c={
-                    step.number === currentStep
-                      ? '#284361'
-                      : step.number < currentStep
-                      ? 'dark'
-                      : 'dimmed'
-                  }
-                >
-                  {step.label}
-                </Text>
-              </Group>
-              {index < steps.length - 1 && (
-                <Box style={{ flex: 1, margin: '0 16px' }}>
-                  <Progress
-                    value={step.number < currentStep ? 100 : 0}
-                    color="#284361"
-                    size="xs"
+                        : 'gray'
+                    }
+                    variant="filled"
                     style={{
-                      transition: 'all 0.3s ease'
+                      backgroundColor: 
+                        step.number === currentStep || step.number < currentStep
+                          ? '#284361'
+                          : '#e9ecef',
+                      color: 
+                        step.number === currentStep || step.number < currentStep
+                          ? 'white'
+                          : '#6c757d'
                     }}
-                  />
-                </Box>
-              )}
-            </Fragment>
-          ))}
-        </Group>
-      </Container>
-    </Box>
+                  >
+                    {step.number < currentStep ? (
+                      <IconCheck size={20} />
+                    ) : (
+                      step.number
+                    )}
+                  </ThemeIcon>
+                  <Text
+                    size="sm"
+                    fw={500}
+                    c={
+                      step.number === currentStep
+                        ? '#284361'
+                        : step.number < currentStep
+                        ? 'dark'
+                        : 'dimmed'
+                    }
+                  >
+                    {step.label}
+                  </Text>
+                </Group>
+                {index < steps.length - 1 && (
+                  <Box style={{ flex: 1, margin: '0 16px' }}>
+                    <Progress
+                      value={step.number < currentStep ? 100 : 0}
+                      color="#284361"
+                      size="xs"
+                      style={{
+                        transition: 'all 0.3s ease'
+                      }}
+                    />
+                  </Box>
+                )}
+              </Fragment>
+            ))}
+          </Group>
+        </Container>
+      </Box>
+
+      <Box 
+        hiddenFrom="md"
+        style={{ 
+          backgroundColor: 'white', 
+          borderBottom: '1px solid #dee2e6', 
+          padding: '16px 0' 
+        }}
+      >
+        <Container size="xs">
+          <Group justify="center" align="center">
+            {steps.map((step, index) => (
+              <Fragment key={step.number}>
+                <Group gap={8} align="center">
+                  <ThemeIcon
+                    size={28}
+                    radius="xl"
+                    variant="filled"
+                    style={{
+                      backgroundColor: 
+                        step.number === currentStep || step.number < currentStep
+                          ? '#284361'
+                          : '#e9ecef',
+                      color: 
+                        step.number === currentStep || step.number < currentStep
+                          ? 'white'
+                          : '#6c757d'
+                    }}
+                  >
+                    {step.number < currentStep ? <IconCheck size={16} /> : step.number}
+                  </ThemeIcon>
+                  <Text
+                    size="xs"
+                    fw={500}
+                    c={
+                      step.number === currentStep
+                        ? '#284361'
+                        : step.number < currentStep
+                        ? 'dark'
+                        : 'dimmed'
+                    }
+                  >
+                    {step.label}
+                  </Text>
+                </Group>
+                {index < steps.length - 1 && (
+                  <Box style={{ width: 40, marginInline: 8 }}>
+                    <Progress
+                      value={step.number < currentStep ? 100 : 0}
+                      color="#284361"
+                      size="xs"
+                    />
+                  </Box>
+                )}
+              </Fragment>
+            ))}
+          </Group>
+        </Container>
+      </Box>
+    </>
   );
 }

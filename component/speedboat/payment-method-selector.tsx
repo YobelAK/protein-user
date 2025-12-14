@@ -34,92 +34,167 @@ export function PaymentMethodSelector({
   onCardNameChange
 }: PaymentMethodSelectorProps) {
   return (
-    <Paper 
-      shadow="sm" 
-      p="xl" 
-      radius="lg"
-      style={{ backgroundColor: '#eff6ff' }}
-    >
-      <Title order={2} size="xl" fw={700} c="#284361" mb="md">
-        Select Your Payment Method
-      </Title>
-      <Stack gap="sm">
-        <PaymentOption 
-          id="virtual-account" 
-          icon={<IconBuilding size={20} />} 
-          title="Virtual Account" 
-          subtitle="BCA / Mandiri / BNI" 
-          fee="Transaction fee IDR 5,000 applies" 
-          selected={selectedMethod === 'virtual-account'} 
-          onSelect={() => onMethodChange('virtual-account')} 
-        />
-        <Collapse in={selectedMethod === 'virtual-account'}>
-          <Box p="md" style={{ backgroundColor: 'white', borderRadius: 8, border: '1px solid #e5e7eb' }}>
-            <Title order={6} size="sm" c="#374151" mb={8}>Select Bank</Title>
-            <Select
-              value={vaBank}
-              onChange={(v) => onVaBankChange?.(String(v || '').toUpperCase())}
-              data={[
-                { value: 'BCA', label: 'BCA' },
-                { value: 'BNI', label: 'BNI' },
-                { value: 'MANDIRI', label: 'Mandiri' },
-                { value: 'BRI', label: 'BRI' },
-                { value: 'CIMB', label: 'CIMB' },
-                { value: 'PERMATA', label: 'Permata' },
-              ]}
-              placeholder="Select bank"
+    <>
+      <Box visibleFrom="md">
+        <Paper 
+          shadow="sm" 
+          p="xl" 
+          radius="lg"
+          style={{ backgroundColor: '#eff6ff' }}
+        >
+          <Title order={2} size="xl" fw={700} c="#284361" mb="md">
+            Select Your Payment Method
+          </Title>
+          <Stack gap="sm">
+            <PaymentOption 
+              id="virtual-account" 
+              icon={<IconBuilding size={20} />} 
+              title="Virtual Account" 
+              subtitle="BCA / Mandiri / BNI" 
+              fee="Transaction fee IDR 5,000 applies" 
+              selected={selectedMethod === 'virtual-account'} 
+              onSelect={() => onMethodChange('virtual-account')} 
             />
-            <Group mt="sm">
-              {(() => {
-                const logos: Record<string, string> = {
-                  BCA: '/asset/bank/bca.svg',
-                  BNI: '/asset/bank/bni.svg',
-                  MANDIRI: '/asset/bank/mandiri.svg',
-                  BRI: '/asset/bank/bri.svg',
-                  CIMB: '/asset/bank/cimb.svg',
-                  PERMATA: '/asset/bank/permata.svg',
-                };
-                const src = logos[(vaBank || '').toUpperCase()] || '';
-                return src ? (
-                  <img src={src} alt={vaBank || ''} style={{ height: 24 }} />
-                ) : (
-                  <Avatar radius="sm">{(vaBank || '').toUpperCase()}</Avatar>
-                );
-              })()}
-            </Group>
-          </Box>
-        </Collapse>
-        <PaymentOption 
-          id="credit-card" 
-          icon={<IconCreditCard size={20} />} 
-          title="Credit / Debit Card" 
-          subtitle="Processing fee 2.5% applies" 
-          selected={selectedMethod === 'credit-card'} 
-          onSelect={() => onMethodChange('credit-card')} 
-        />
-        <Collapse in={selectedMethod === 'credit-card'}>
-          <Box p="md" style={{ backgroundColor: 'white', borderRadius: 8, border: '1px solid #e5e7eb' }}>
-            <Title order={6} size="sm" c="#374151" mb={8}>Card Details</Title>
-            <Stack gap="sm">
-              <TextInput label="Card Number" placeholder="4111 1111 1111 1111" value={cardNumber} onChange={(e) => onCardNumberChange?.(e.currentTarget.value)} />
-              <Group grow>
-                <TextInput label="Expiry (MM/YY)" placeholder="12/29" value={cardExpiry} onChange={(e) => onCardExpiryChange?.(e.currentTarget.value)} />
-                <TextInput label="CVV" placeholder="123" value={cardCvn} onChange={(e) => onCardCvnChange?.(e.currentTarget.value)} />
-              </Group>
-              <TextInput label="Name on Card" placeholder="Your name" value={cardName} onChange={(e) => onCardNameChange?.(e.currentTarget.value)} />
-            </Stack>
-          </Box>
-        </Collapse>
-        <PaymentOption 
-          id="qris" 
-          icon={<IconDeviceMobile size={20} />} 
-          title="QRIS" 
-          subtitle="Transaction fee IDR 5,000 applies" 
-          selected={selectedMethod === 'qris'} 
-          onSelect={() => onMethodChange('qris')} 
-        />
-      </Stack>
-    </Paper>
+            <Collapse in={selectedMethod === 'virtual-account'}>
+              <Box p="md" style={{ backgroundColor: 'white', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                <Title order={6} size="sm" c="#374151" mb={8}>Select Bank</Title>
+                <Select
+                  value={vaBank}
+                  onChange={(v) => onVaBankChange?.(String(v || '').toUpperCase())}
+                  data={[
+                    { value: 'BCA', label: 'BCA' },
+                    { value: 'BNI', label: 'BNI' },
+                    { value: 'MANDIRI', label: 'Mandiri' },
+                    { value: 'BRI', label: 'BRI' },
+                    { value: 'CIMB', label: 'CIMB' },
+                    { value: 'PERMATA', label: 'Permata' },
+                  ]}
+                  placeholder="Select bank"
+                />
+                <Group mt="sm">
+                  {(() => {
+                    const logos: Record<string, string> = {
+                      BCA: '/asset/bank/bca.svg',
+                      BNI: '/asset/bank/bni.svg',
+                      MANDIRI: '/asset/bank/mandiri.svg',
+                      BRI: '/asset/bank/bri.svg',
+                      CIMB: '/asset/bank/cimb.svg',
+                      PERMATA: '/asset/bank/permata.svg',
+                    };
+                    const src = logos[(vaBank || '').toUpperCase()] || '';
+                    return src ? (
+                      <img src={src} alt={vaBank || ''} style={{ height: 24 }} />
+                    ) : (
+                      <Avatar radius="sm">{(vaBank || '').toUpperCase()}</Avatar>
+                    );
+                  })()}
+                </Group>
+              </Box>
+            </Collapse>
+            <PaymentOption 
+              id="credit-card" 
+              icon={<IconCreditCard size={20} />} 
+              title="Credit / Debit Card" 
+              subtitle="Processing fee 2.5% applies" 
+              selected={selectedMethod === 'credit-card'} 
+              onSelect={() => onMethodChange('credit-card')} 
+            />
+            <Collapse in={selectedMethod === 'credit-card'}>
+              <Box p="md" style={{ backgroundColor: 'white', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                <Title order={6} size="sm" c="#374151" mb={8}>Card Details</Title>
+                <Stack gap="sm">
+                  <TextInput label="Card Number" placeholder="4111 1111 1111 1111" value={cardNumber} onChange={(e) => onCardNumberChange?.(e.currentTarget.value)} />
+                  <Group grow>
+                    <TextInput label="Expiry (MM/YY)" placeholder="12/29" value={cardExpiry} onChange={(e) => onCardExpiryChange?.(e.currentTarget.value)} />
+                    <TextInput label="CVV" placeholder="123" value={cardCvn} onChange={(e) => onCardCvnChange?.(e.currentTarget.value)} />
+                  </Group>
+                  <TextInput label="Name on Card" placeholder="Your name" value={cardName} onChange={(e) => onCardNameChange?.(e.currentTarget.value)} />
+                </Stack>
+              </Box>
+            </Collapse>
+            <PaymentOption 
+              id="qris" 
+              icon={<IconDeviceMobile size={20} />} 
+              title="QRIS" 
+              subtitle="Transaction fee IDR 5,000 applies" 
+              selected={selectedMethod === 'qris'} 
+              onSelect={() => onMethodChange('qris')} 
+            />
+          </Stack>
+        </Paper>
+      </Box>
+
+      <Box hiddenFrom="md">
+        <Paper 
+          shadow="sm" 
+          p="md" 
+          radius="lg"
+          style={{ backgroundColor: '#eff6ff' }}
+        >
+          <Title order={2} size="lg" fw={700} c="#284361" mb="sm">
+            Select Payment Method
+          </Title>
+          <Stack gap="sm">
+            <PaymentOption 
+              id="virtual-account" 
+              icon={<IconBuilding size={18} />} 
+              title="Virtual Account" 
+              subtitle="BCA / Mandiri / BNI" 
+              fee="Transaction fee IDR 5,000 applies" 
+              selected={selectedMethod === 'virtual-account'} 
+              onSelect={() => onMethodChange('virtual-account')} 
+            />
+            <Collapse in={selectedMethod === 'virtual-account'}>
+              <Box p="sm" style={{ backgroundColor: 'white', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                <Title order={6} size="sm" c="#374151" mb={6}>Select Bank</Title>
+                <Select
+                  value={vaBank}
+                  onChange={(v) => onVaBankChange?.(String(v || '').toUpperCase())}
+                  data={[
+                    { value: 'BCA', label: 'BCA' },
+                    { value: 'BNI', label: 'BNI' },
+                    { value: 'MANDIRI', label: 'Mandiri' },
+                    { value: 'BRI', label: 'BRI' },
+                    { value: 'CIMB', label: 'CIMB' },
+                    { value: 'PERMATA', label: 'Permata' },
+                  ]}
+                  placeholder="Select bank"
+                />
+              </Box>
+            </Collapse>
+            <PaymentOption 
+              id="credit-card" 
+              icon={<IconCreditCard size={18} />} 
+              title="Credit / Debit Card" 
+              subtitle="Processing fee 2.5% applies" 
+              selected={selectedMethod === 'credit-card'} 
+              onSelect={() => onMethodChange('credit-card')} 
+            />
+            <Collapse in={selectedMethod === 'credit-card'}>
+              <Box p="sm" style={{ backgroundColor: 'white', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                <Title order={6} size="sm" c="#374151" mb={6}>Card Details</Title>
+                <Stack gap="sm">
+                  <TextInput label="Card Number" placeholder="4111 1111 1111 1111" value={cardNumber} onChange={(e) => onCardNumberChange?.(e.currentTarget.value)} />
+                  <Group grow>
+                    <TextInput label="Expiry (MM/YY)" placeholder="12/29" value={cardExpiry} onChange={(e) => onCardExpiryChange?.(e.currentTarget.value)} />
+                    <TextInput label="CVV" placeholder="123" value={cardCvn} onChange={(e) => onCardCvnChange?.(e.currentTarget.value)} />
+                  </Group>
+                  <TextInput label="Name on Card" placeholder="Your name" value={cardName} onChange={(e) => onCardNameChange?.(e.currentTarget.value)} />
+                </Stack>
+              </Box>
+            </Collapse>
+            <PaymentOption 
+              id="qris" 
+              icon={<IconDeviceMobile size={18} />} 
+              title="QRIS" 
+              subtitle="Transaction fee IDR 5,000 applies" 
+              selected={selectedMethod === 'qris'} 
+              onSelect={() => onMethodChange('qris')} 
+            />
+          </Stack>
+        </Paper>
+      </Box>
+    </>
   );
 }
 

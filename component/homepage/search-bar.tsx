@@ -31,6 +31,14 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
   const [activeTab, setActiveTab] = useState('speedboat');
   const [returnTrip, setReturnTrip] = useState(false);
   const router = useRouter();
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   const [from, setFrom] = useState<string | null>(fromOptions[0]?.value ?? null);
   const [to, setTo] = useState<string | null>(toOptions[0]?.value ?? null);
@@ -46,6 +54,8 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
   const [showPassengerSelector, setShowPassengerSelector] = useState(false);
   const passengerRef = useRef<HTMLDivElement>(null);
   const [passengerCounts, setPassengerCounts] = useState<PassengerCounts>({ adult: 2, child: 0, infant: 0 });
+  const departureInputRef = useRef<HTMLInputElement>(null);
+  const returnInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -58,7 +68,33 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
   }, []);
 
   const handleDepartureChange = (value: string) => {
-    setDeparture(value || todayStr);
+    const maxDep = (() => {
+      if (!returnTrip || !ret) return '';
+      const [yy, mm, dd] = ret.split('-').map((s) => Number(s));
+      const d = new Date(yy, (mm || 1) - 1, dd || 1);
+      d.setDate(d.getDate() - 1);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const da = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${da}`;
+    })();
+    const next = value || todayStr;
+    const clampedDep = (maxDep && next > maxDep) ? maxDep : next;
+    setDeparture(clampedDep);
+    if (returnTrip) {
+      const minRet = (() => {
+        const [yy, mm, dd] = clampedDep.split('-').map((s) => Number(s));
+        const d = new Date(yy, (mm || 1) - 1, dd || 1);
+        d.setDate(d.getDate() + 1);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const da = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${da}`;
+      })();
+      if (!ret || ret < minRet) {
+        setRet(minRet);
+      }
+    }
   };
 
   const handleSearch = () => {
@@ -91,12 +127,12 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
   };
 
   return (
-    <Box style={{ backgroundColor: '#f8f9fa', padding: '64px 0' }}>
-      <Container size="xl" style={{ marginTop: '-80px', position: 'relative', zIndex: 10 }}>
+    <Box style={{ backgroundColor: '#f8f9fa', padding: isMobile ? '40px 0' : '64px 0' }}>
+      <Container size="xl" style={{ marginTop: isMobile ? '-40px' : '-80px', position: 'relative', zIndex: 10 }}>
         <Paper 
           shadow="xl" 
-          radius="xl" 
-          p="xl"
+          radius={isMobile ? 'lg' : 'xl'} 
+          p={isMobile ? 'md' : 'xl'}
           style={{ backgroundColor: 'white' }}
         >
           <Tabs 
@@ -109,11 +145,13 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
               }
             }}
           >
-            <Tabs.List>
-              <Tabs.Tab value="speedboat">Speedboat</Tabs.Tab>
-              {/* <Tabs.Tab value="watersport">Watersport & Tour</Tabs.Tab>
-              <Tabs.Tab value="beachclub">Beach Club</Tabs.Tab> */}
-            </Tabs.List>
+            {!isMobile && (
+              <Tabs.List>
+                <Tabs.Tab value="speedboat">Speedboat</Tabs.Tab>
+                {/* <Tabs.Tab value="watersport">Watersport & Tour</Tabs.Tab>
+                <Tabs.Tab value="beachclub">Beach Club</Tabs.Tab> */}
+              </Tabs.List>
+            )}
 
 
           {/* jangan dihapus <div className="flex gap-4 mb-6 border-b">
@@ -194,24 +232,72 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
                     label="Departure Date"
                     type="date"
                     placeholder="mm/dd/yyyy"
-                    leftSection={<IconCalendar size={20} />}
+                    leftSection={
+                      <Box
+                        onClick={() => {
+                          const el = departureInputRef.current;
+                          if (!el || el.disabled || el.readOnly) return;
+                          el.focus();
+                          if (typeof el.showPicker === 'function') el.showPicker();
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <IconCalendar size={20} />
+                      </Box>
+                    }
+                    rightSection={
+                      <Box
+                        onClick={() => {
+                          const el = departureInputRef.current;
+                          if (!el || el.disabled || el.readOnly) return;
+                          el.focus();
+                          if (typeof el.showPicker === 'function') el.showPicker();
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <IconChevronDown size={16} />
+                      </Box>
+                    }
                     value={departure}
                     onChange={(e) => handleDepartureChange(e.currentTarget.value)}
                     min={todayStr}
-                    styles={{
-                      input: {
-                        backgroundColor: '#f5f7fa',
-                        border: '1px solid #d1d5db',
-                        '&:focus': {
-                          borderColor: '#284361'
-                        }
-                      },
-                      label: {
-                        fontSize: '14px',
-                        color: '#6b7280',
-                        marginBottom: '8px'
-                      }
+                    max={(() => {
+                      if (!returnTrip || !ret) return undefined;
+                      const [yy, mm, dd] = ret.split('-').map((s) => Number(s));
+                      const d = new Date(yy, (mm || 1) - 1, dd || 1);
+                      d.setDate(d.getDate() - 1);
+                      const y = d.getFullYear();
+                      const m = String(d.getMonth() + 1).padStart(2, '0');
+                      const da = String(d.getDate()).padStart(2, '0');
+                      return `${y}-${m}-${da}`;
+                    })()}
+                    ref={departureInputRef}
+                    onClick={() => {
+                      const el = departureInputRef.current;
+                      if (!el || el.disabled || el.readOnly) return;
+                      el.focus();
+                      if (typeof el.showPicker === 'function') el.showPicker();
                     }}
+                    styles={{
+              input: {
+                cursor: 'pointer',
+                backgroundColor: '#f5f7fa',
+                border: '1px solid #d1d5db',
+                '&:focus': {
+                  borderColor: '#284361'
+                },
+                '&:disabled': {
+                  opacity: 0.5,
+                  cursor: 'not-allowed'
+                }
+              },
+              label: {
+                fontSize: '14px',
+                color: '#6b7280',
+                marginBottom: '8px'
+              },
+              section: { cursor: 'pointer' }
+            }}
                   />
                 </Grid.Col>
 
@@ -222,7 +308,22 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
                       <Checkbox
                         label="Return"
                         checked={returnTrip}
-                        onChange={(event) => { const checked = event.currentTarget.checked; setReturnTrip(checked); if (!checked) setRet(''); }}
+                        onChange={(event) => { 
+                          const checked = event.currentTarget.checked; 
+                          setReturnTrip(checked); 
+                          if (!checked) { 
+                            setRet(''); 
+                          } else {
+                            const base = departure || todayStr;
+                            const [yy, mm, dd] = base.split('-').map((s) => Number(s));
+                            const d = new Date(yy, (mm || 1) - 1, dd || 1);
+                            d.setDate(d.getDate() + 1);
+                            const y = d.getFullYear();
+                            const m = String(d.getMonth() + 1).padStart(2, '0');
+                            const da = String(d.getDate()).padStart(2, '0');
+                            setRet(`${y}-${m}-${da}`);
+                          }
+                        }}
                         size="sm"
                         styles={{
                           label: {
@@ -236,21 +337,82 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
                       type="date"
                       placeholder="mm/dd/yyyy"
                       disabled={!returnTrip}
-                      leftSection={<IconCalendar size={20} />}
+                      leftSection={
+                        <Box
+                          onClick={() => {
+                            if (!returnTrip) return;
+                            const el = returnInputRef.current;
+                            if (!el || el.disabled || el.readOnly) return;
+                            el.focus();
+                            if (typeof el.showPicker === 'function') el.showPicker();
+                          }}
+                          style={{ cursor: returnTrip ? 'pointer' : 'not-allowed' }}
+                        >
+                          <IconCalendar size={20} />
+                        </Box>
+                      }
+                      rightSection={
+                        <Box
+                          onClick={() => {
+                            if (!returnTrip) return;
+                            const el = returnInputRef.current;
+                            if (!el || el.disabled || el.readOnly) return;
+                            el.focus();
+                            if (typeof el.showPicker === 'function') el.showPicker();
+                          }}
+                          style={{ cursor: returnTrip ? 'pointer' : 'not-allowed' }}
+                        >
+                          <IconChevronDown size={16} />
+                        </Box>
+                      }
                       value={ret}
-                      onChange={(e) => setRet(e.currentTarget.value)}
-                      min={todayStr}
+                      onChange={(e) => {
+                        const val = e.currentTarget.value;
+                        const minRet = (() => {
+                          const base = departure || todayStr;
+                          const [yy, mm, dd] = base.split('-').map((s) => Number(s));
+                          const d = new Date(yy, (mm || 1) - 1, dd || 1);
+                          d.setDate(d.getDate() + 1);
+                          const y = d.getFullYear();
+                          const m = String(d.getMonth() + 1).padStart(2, '0');
+                          const da = String(d.getDate()).padStart(2, '0');
+                          return `${y}-${m}-${da}`;
+                        })();
+                        const clamped = (!val || val < minRet) ? minRet : val;
+                        setRet(clamped);
+                      }}
+                      min={(() => {
+                        const base = departure || todayStr;
+                        const [yy, mm, dd] = base.split('-').map((s) => Number(s));
+                        const d = new Date(yy, (mm || 1) - 1, dd || 1);
+                        d.setDate(d.getDate() + 1);
+                        const y = d.getFullYear();
+                        const m = String(d.getMonth() + 1).padStart(2, '0');
+                        const da = String(d.getDate()).padStart(2, '0');
+                        return `${y}-${m}-${da}`;
+                      })()}
+                      ref={returnInputRef}
+                      onClick={() => {
+                        if (!returnTrip) return;
+                        const el = returnInputRef.current;
+                        if (!el || el.disabled || el.readOnly) return;
+                        el.focus();
+                        if (typeof el.showPicker === 'function') el.showPicker();
+                      }}
                       styles={{
                         input: {
+                          cursor: returnTrip ? 'pointer' : 'not-allowed',
                           backgroundColor: '#f5f7fa',
                           border: '1px solid #d1d5db',
                           '&:focus': {
                             borderColor: '#284361'
                           },
                           '&:disabled': {
-                            opacity: 0.5
+                            opacity: 0.5,
+                            cursor: 'not-allowed'
                           }
-                        }
+                        },
+                        section: { cursor: returnTrip ? 'pointer' : 'not-allowed' }
                       }}
                     />
                 </Box>

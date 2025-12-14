@@ -59,6 +59,8 @@ export function SearchBar({
     infant: 0
   });
   const passengerRef = useRef<HTMLDivElement>(null);
+  const departureInputRef = useRef<HTMLInputElement>(null);
+  const returnInputRef = useRef<HTMLInputElement>(null);
 
   // Close passenger selector when clicking outside
   useEffect(() => {
@@ -137,6 +139,24 @@ export function SearchBar({
   const handleDepartureChange = (value: string) => {
     setDeparture(value || todayStr);
     const dep = (value || todayStr);
+    const nextDay = (() => {
+      const base = dep || todayStr;
+      const [yy, mm, dd] = base.split('-').map((s) => Number(s));
+      const d = new Date(yy, (mm || 1) - 1, dd || 1);
+      d.setDate(d.getDate() + 1);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const da = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${da}`;
+    })();
+    if (returnTrip) {
+      try {
+        const current = ret;
+        if (!current || current < nextDay) {
+          setRet(nextDay);
+        }
+      } catch {}
+    }
     const total = passengers.adult + passengers.child + passengers.infant;
     const retParam = returnTrip ? ret : undefined;
     onDepartureChange?.({ from, to, departure: dep, return: retParam, passengers: total });
@@ -154,7 +174,7 @@ export function SearchBar({
   return (
     <Paper shadow="sm" radius="lg" p="xl" bg="white">
       <Grid gutter="md">
-        <Grid.Col span={{ base: 12, md: 1.5 }}>
+        <Grid.Col span={{ base: 12, md: 2 }}>
           <Stack gap="xs">
             <Text size="sm" c="dimmed">From</Text>
             <Select
@@ -174,7 +194,7 @@ export function SearchBar({
           </Stack>
         </Grid.Col>
         
-        <Grid.Col span={{ base: 12, md: 1.5 }}>
+        <Grid.Col span={{ base: 12, md: 2 }}>
           <Stack gap="xs">
             <Text size="sm" c="dimmed">To</Text>
             <Select
@@ -199,27 +219,49 @@ export function SearchBar({
             label="Departure Date"
             type="date"
             placeholder="mm/dd/yyyy"
-            leftSection={<IconCalendar size={20} />}
+            leftSection={
+              <Box
+                onClick={() => {
+                  const el = departureInputRef.current;
+                  if (!el || el.disabled || el.readOnly) return;
+                  el.focus();
+                  if (typeof el.showPicker === 'function') el.showPicker();
+                }}
+                style={{ cursor: 'pointer' }}
+              >
+                <IconCalendar size={20} />
+              </Box>
+            }
             value={departure}
             onChange={(e) => handleDepartureChange(e.currentTarget.value)}
             min={todayStr}
             disabled={false}
+            ref={departureInputRef}
+            onClick={() => {
+              const el = departureInputRef.current;
+              if (!el || el.disabled || el.readOnly) return;
+              el.focus();
+              if (typeof el.showPicker === 'function') el.showPicker();
+            }}
             styles={{
               input: {
+                cursor: 'pointer',
                 backgroundColor: '#f5f7fa',
                 border: '1px solid #d1d5db',
                 '&:focus': {
                   borderColor: '#284361'
                 },
                 '&:disabled': {
-                  opacity: 0.5
+                  opacity: 0.5,
+                  cursor: 'not-allowed'
                 }
               },
               label: {
                 fontSize: '14px',
                 color: '#6b7280',
                 marginBottom: '8px'
-              }
+              },
+              section: { cursor: 'pointer' }
             }}
           />
         </Grid.Col>
@@ -228,45 +270,113 @@ export function SearchBar({
                           <Box>
                             <Group justify="space-between" mb="xs">
                               <Text size="sm" c="#6b7280">Return Date</Text>
-                              <Checkbox
-                                label="Return"
-                                checked={returnTrip}
-                                disabled={false}
-                                onChange={(event) => { const checked = event.currentTarget.checked; setReturnTrip(checked); if (!checked) setRet(''); const total = passengers.adult + passengers.child + passengers.infant; const dep = inboundMode ? ret : departure; onReturnToggle?.(checked, { from, to, departure: dep, return: checked ? ret : undefined, passengers: total }); }}
-                                size="sm"
-                                styles={{
-                                  label: {
-                                    fontSize: '14px',
-                                    color: '#6b7280'
-                                  }
-                                }}
-                              />
+          <Checkbox
+            label="Return"
+            checked={returnTrip}
+            disabled={false}
+            onChange={(event) => {
+              const checked = event.currentTarget.checked;
+              setReturnTrip(checked);
+              let nextRet = ret;
+              if (checked) {
+                const base = departure || todayStr;
+                const [yy, mm, dd] = base.split('-').map((s) => Number(s));
+                const d = new Date(yy, (mm || 1) - 1, dd || 1);
+                d.setDate(d.getDate() + 1);
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const da = String(d.getDate()).padStart(2, '0');
+                nextRet = `${y}-${m}-${da}`;
+                setRet(nextRet);
+              } else {
+                setRet('');
+              }
+              const total = passengers.adult + passengers.child + passengers.infant;
+              const depEff = inboundMode ? nextRet : departure;
+              onReturnToggle?.(checked, { from, to, departure: depEff, return: checked ? nextRet : undefined, passengers: total });
+            }}
+            size="sm"
+            styles={{
+              label: {
+                fontSize: '14px',
+                color: '#6b7280'
+              }
+            }}
+          />
                             </Group>
-                            <TextInput
-                              type="date"
-                              placeholder="mm/dd/yyyy"
-                              disabled={!returnTrip}
-                              leftSection={<IconCalendar size={20} />}
-                              value={ret}
-                              onChange={(e) => { const val = e.currentTarget.value; setRet(val); const total = passengers.adult + passengers.child + passengers.infant; const depEff = inboundMode ? val : departure; onReturnDateChange?.({ from, to, departure: depEff, return: returnTrip ? val : undefined, passengers: total }); }}
-                              min={todayStr}
+              <TextInput
+                type="date"
+                placeholder="mm/dd/yyyy"
+                disabled={!returnTrip}
+                leftSection={
+                                <Box
+                                  onClick={() => {
+                                    if (!returnTrip) return;
+                                    const el = returnInputRef.current;
+                                    if (!el || el.disabled || el.readOnly) return;
+                                    el.focus();
+                                    if (typeof el.showPicker === 'function') el.showPicker();
+                                  }}
+                                  style={{ cursor: returnTrip ? 'pointer' : 'not-allowed' }}
+                                >
+                                  <IconCalendar size={20} />
+                                </Box>
+                              }
+                value={ret}
+                onChange={(e) => {
+                  const val = e.currentTarget.value;
+                  const base = departure || todayStr;
+                  const [yy, mm, dd] = base.split('-').map((s) => Number(s));
+                  const d = new Date(yy, (mm || 1) - 1, dd || 1);
+                  d.setDate(d.getDate() + 1);
+                  const y = d.getFullYear();
+                  const m = String(d.getMonth() + 1).padStart(2, '0');
+                  const da = String(d.getDate()).padStart(2, '0');
+                  const minRet = `${y}-${m}-${da}`;
+                  const clamped = (!val || val < minRet) ? minRet : val;
+                  setRet(clamped);
+                  const total = passengers.adult + passengers.child + passengers.infant;
+                  const depEff = inboundMode ? clamped : departure;
+                  onReturnDateChange?.({ from, to, departure: depEff, return: returnTrip ? clamped : undefined, passengers: total });
+                }}
+                min={(() => {
+                  const base = departure || todayStr;
+                  const [yy, mm, dd] = base.split('-').map((s) => Number(s));
+                  const d = new Date(yy, (mm || 1) - 1, dd || 1);
+                  d.setDate(d.getDate() + 1);
+                  const y = d.getFullYear();
+                  const m = String(d.getMonth() + 1).padStart(2, '0');
+                  const da = String(d.getDate()).padStart(2, '0');
+                  return `${y}-${m}-${da}`;
+                })()}
+                ref={returnInputRef}
+                onClick={() => {
+                  if (!returnTrip) return;
+                  const el = returnInputRef.current;
+                  if (!el || el.disabled || el.readOnly) return;
+                                el.focus();
+                                if (typeof el.showPicker === 'function') el.showPicker();
+                              }}
                               styles={{
                                 input: {
+                                  cursor: returnTrip ? 'pointer' : 'not-allowed',
                                   backgroundColor: '#f5f7fa',
                                   border: '1px solid #d1d5db',
                                   '&:focus': {
                                     borderColor: '#284361'
                                   },
                                   '&:disabled': {
-                                    opacity: 0.5
+                                    opacity: 0.5,
+                                    cursor: 'not-allowed'
                                   }
-                                }
+                                },
+                                section: { cursor: returnTrip ? 'pointer' : 'not-allowed' }
                               }}
                             />
                           </Box>
                         </Grid.Col>
         
-        <Grid.Col span={{ base: 12, md: 3 }} ref={passengerRef}>
+        <Grid.Col span={{ base: 12, md: 4 }} ref={passengerRef}>
           <Stack gap="xs">
             <Text size="sm" c="dimmed">Passengers</Text>
             <div style={{ position: 'relative' }}>
@@ -311,7 +421,7 @@ export function SearchBar({
           </Stack>
         </Grid.Col>
         
-        <Grid.Col span={{ base: 12, md: 2 }} style={{ display: 'flex', alignItems: 'flex-end' }}>
+        {/*<Grid.Col span={{ base: 12, md: 2 }} style={{ display: 'flex', alignItems: 'flex-end' }}>
           <Button
             fullWidth
             size="md"
@@ -324,7 +434,7 @@ export function SearchBar({
           >
             Search
           </Button>
-        </Grid.Col>
+        </Grid.Col>*/}
       </Grid>
     </Paper>
   );

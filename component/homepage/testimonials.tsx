@@ -23,6 +23,7 @@ export function Testimonials() {
   const [mounted, setMounted] = useState(true);
   const [anim, setAnim] = useState<'slide-left' | 'slide-right'>('slide-right');
   const pendingOffset = React.useRef<number | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -44,7 +45,15 @@ export function Testimonials() {
     return () => { mounted = false };
   }, []);
 
-  const visible = reviews.slice(offset, Math.min(offset + 4, reviews.length));
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  const visible = reviews.slice(offset, Math.min(offset + (isMobile ? 1 : 4), reviews.length));
 
   return (
     <Box style={{ backgroundColor: '#f8f9fa', padding: '16px 0' }}>
@@ -78,13 +87,13 @@ export function Testimonials() {
               size="lg"
               style={{ borderColor: '#dee2e6', backgroundColor: 'white' }}
               onClick={() => {
-                const maxOffset = Math.max(0, reviews.length - 4);
-                if (reviews.length <= 4 || offset >= maxOffset || !mounted) return;
+                const maxOffset = Math.max(0, reviews.length - (isMobile ? 1 : 4));
+                if (reviews.length <= (isMobile ? 1 : 4) || offset >= maxOffset || !mounted) return;
                 setAnim('slide-left');
                 pendingOffset.current = Math.min(maxOffset, offset + 1);
                 setMounted(false);
               }}
-              disabled={reviews.length <= 4 || offset >= Math.max(0, reviews.length - 4) || !mounted}
+              disabled={reviews.length <= (isMobile ? 1 : 4) || offset >= Math.max(0, reviews.length - (isMobile ? 1 : 4)) || !mounted}
             >
               <IconChevronRight size={20} />
             </ActionIcon>

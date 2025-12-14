@@ -17,6 +17,7 @@ interface PaymentSummaryProps {
   qrImageUrl?: string;
   vaNumber?: string;
   vaBankCode?: string;
+  onRefresh?: () => void;
 }
 
 export function PaymentSummary({
@@ -32,6 +33,7 @@ export function PaymentSummary({
   qrImageUrl,
   vaNumber,
   vaBankCode,
+  onRefresh,
 }: PaymentSummaryProps) {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [expiredNotified, setExpiredNotified] = useState(false);
@@ -176,6 +178,24 @@ export function PaymentSummary({
       >
         {buttonText}
       </Button>
+      
+      {onRefresh && (
+        <Button
+          onClick={onRefresh}
+          fullWidth
+          size="lg"
+          variant="outline"
+          style={{
+            borderColor: '#284361',
+            color: '#284361',
+            fontWeight: 600,
+            padding: '12px 24px'
+          }}
+          disabled={timeLeft === 0}
+        >
+          Refresh Payment
+        </Button>
+      )}
     </Stack>
   );
 
