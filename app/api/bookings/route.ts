@@ -1087,20 +1087,21 @@ export async function GET(request: Request) {
     let b = await prisma.booking.findUnique({
       where: { id },
       include: {
-      items: {
-        include: {
-          product: {
-            include: {
-              category: true,
-              fastboatSchedule: {
-                include: { departureRoute: true, arrivalRoute: true, boat: true },
+        items: {
+          include: {
+            product: {
+              include: {
+                category: true,
+                fastboatSchedule: {
+                  include: { departureRoute: true, arrivalRoute: true, boat: true },
+                },
               },
             },
+            inventory: true,
           },
-          inventory: true,
         },
-      },
-      tenant: true,
+        tenant: true,
+        review: true,
     },
   });
     if (!b) {
@@ -1146,20 +1147,21 @@ export async function GET(request: Request) {
   let b = await prisma.booking.findFirst({
     where: { bookingCode: code },
     include: {
-      items: {
-        include: {
-          product: {
-            include: {
-              category: true,
-              fastboatSchedule: {
-                include: { departureRoute: true, arrivalRoute: true, boat: true },
+        items: {
+          include: {
+            product: {
+              include: {
+                category: true,
+                fastboatSchedule: {
+                  include: { departureRoute: true, arrivalRoute: true, boat: true },
+                },
               },
             },
+            inventory: true,
           },
-          inventory: true,
         },
-      },
-      tenant: true,
+        tenant: true,
+        review: true,
     },
   });
     if (!b) {
@@ -1254,6 +1256,7 @@ export async function GET(request: Request) {
         },
       },
       tenant: true,
+      review: true,
     },
   });
   try {
@@ -1300,6 +1303,7 @@ export async function GET(request: Request) {
             },
           },
           tenant: true,
+          review: true,
         },
       });
     }
@@ -1482,6 +1486,7 @@ export async function GET(request: Request) {
       deadlineAt: deadlineAt ? deadlineAt.toISOString() : null,
       pendingType,
       cancellationReason: (b as any)?.cancellationReason ?? (b as any)?.cancellation_reason ?? null,
+      hasReview: !!(b as any)?.review,
     };
   });
 
