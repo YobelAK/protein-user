@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getSupabaseServerClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 
 const prisma = db;
 
@@ -96,6 +98,7 @@ export async function POST(request: Request) {
     const priceIdr = Number(body?.priceIdr || 0);
     const portFee = Number(body?.portFee || 0);
     const totalAmountFromClient = Number(body?.totalAmount || 0);
+    const legs = Array.isArray((body as any)?.legs) ? (body as any).legs : [];
     const contact = body?.contact || {};
     const passengers = Array.isArray(body?.passengers) ? body.passengers : [];
     const ownerId = String(body?.ownerId || '');
@@ -111,30 +114,90 @@ export async function POST(request: Request) {
 
     let productId: string = '';
     let tenantId: string = '';
-    if (useSupabase) {
-      const scheduleRes = await fetch(`${supabaseUrl}/rest/v1/fastboat_schedules?select=${encodeURIComponent(scheduleSelect)}&id=eq.${encodeURIComponent(scheduleId)}`, {
-        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-        cache: 'no-store',
-      });
-      if (scheduleRes.ok) {
-        const scheduleData = await scheduleRes.json();
-        const schedule = Array.isArray(scheduleData) && scheduleData.length > 0 ? scheduleData[0] : null;
-        if (schedule) {
-          productId = String(schedule.productId || schedule.product?.id || '');
-          tenantId = String(schedule.product?.tenantId || '');
+    type LegInput = { scheduleId: string; departureDate?: string; priceIdr?: number; inventoryId?: string; notes?: string; rtType?: string };
+    type LegInfo = { scheduleId: string; productId: string; tenantId: string; departureDate: string; priceIdr: number; inventoryId?: string | null; notes?: string; rtType?: string };
+    const legInputs: LegInput[] = legs
+      .filter((lg: any) => lg && typeof lg === 'object' && lg.scheduleId)
+      .map((lg: any) => ({
+        scheduleId: String(lg.scheduleId || ''),
+        departureDate: String(lg.departureDate || ''),
+        priceIdr: Number(lg.priceIdr || 0),
+        inventoryId: lg.inventoryId ? String(lg.inventoryId) : undefined,
+        notes: typeof lg.notes === 'string' ? lg.notes : undefined,
+        rtType: typeof lg.rtType === 'string' ? lg.rtType : undefined,
+      }));
+
+    const legInfos: LegInfo[] = [];
+    if (legInputs.length > 0) {
+      for (const lg of legInputs) {
+        let pid = '';
+        let tid = '';
+        if (useSupabase) {
+          try {
+            const scheduleRes = await fetch(`${supabaseUrl}/rest/v1/fastboat_schedules?select=${encodeURIComponent(scheduleSelect)}&id=eq.${encodeURIComponent(lg.scheduleId)}`, {
+              headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+              cache: 'no-store',
+            });
+            if (scheduleRes.ok) {
+              const scheduleData = await scheduleRes.json();
+              const schedule = Array.isArray(scheduleData) && scheduleData.length > 0 ? scheduleData[0] : null;
+              if (schedule) {
+                pid = String(schedule.productId || schedule.product?.id || '');
+                tid = String(schedule.product?.tenantId || '');
+              }
+            }
+          } catch {}
         }
+        if (!pid || !tid) {
+          const fs = await prisma.fastboatSchedule.findUnique({
+            where: { id: lg.scheduleId },
+            include: { product: true },
+          });
+          if (!fs) {
+            return NextResponse.json({ error: 'Schedule not found', detail: `Leg schedule not found: ${lg.scheduleId}` }, { status: 404 });
+          }
+          pid = String(fs.productId || fs.product?.id || '');
+          tid = String(fs.product?.tenantId || '');
+        }
+        legInfos.push({
+          scheduleId: lg.scheduleId,
+          productId: pid,
+          tenantId: tid,
+          departureDate: lg.departureDate || departureDate || new Date().toISOString().slice(0, 10),
+          priceIdr: Number.isFinite(lg.priceIdr || 0) && (lg.priceIdr || 0) > 0 ? (lg.priceIdr as number) : priceIdr,
+          inventoryId: lg.inventoryId ?? null,
+          notes: lg.notes,
+          rtType: lg.rtType,
+        });
       }
-    }
-    if (!productId || !tenantId) {
-      const fs = await prisma.fastboatSchedule.findUnique({
-        where: { id: scheduleId },
-        include: { product: true },
-      });
-      if (!fs) {
-        return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
+    } else {
+      if (useSupabase) {
+        try {
+          const scheduleRes = await fetch(`${supabaseUrl}/rest/v1/fastboat_schedules?select=${encodeURIComponent(scheduleSelect)}&id=eq.${encodeURIComponent(scheduleId)}`, {
+            headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+            cache: 'no-store',
+          });
+          if (scheduleRes.ok) {
+            const scheduleData = await scheduleRes.json();
+            const schedule = Array.isArray(scheduleData) && scheduleData.length > 0 ? scheduleData[0] : null;
+            if (schedule) {
+              productId = String(schedule.productId || schedule.product?.id || '');
+              tenantId = String(schedule.product?.tenantId || '');
+            }
+          }
+        } catch {}
       }
-      productId = String(fs.productId || fs.product?.id || '');
-      tenantId = String(fs.product?.tenantId || '');
+      if (!productId || !tenantId) {
+        const fs = await prisma.fastboatSchedule.findUnique({
+          where: { id: scheduleId },
+          include: { product: true },
+        });
+        if (!fs) {
+          return NextResponse.json({ error: 'Schedule not found' }, { status: 404 });
+        }
+        productId = String(fs.productId || fs.product?.id || '');
+        tenantId = String(fs.product?.tenantId || '');
+      }
     }
 
     let inventoryId: string | null = inventoryIdFromClient || null;
@@ -197,69 +260,149 @@ export async function POST(request: Request) {
     const bookingId = crypto.randomUUID();
     const bookingCode = `BKG-${Math.random().toString(36).slice(2,6).toUpperCase()}-${Date.now()}`;
     const nowIso = new Date().toISOString();
-    const unitPriceFor = (ageCat: any) => {
+    const unitPriceFor = (ageCat: any, basePrice: number) => {
       const ac = String(ageCat || '').toLowerCase();
-      return (ac === 'child' || ac === 'infant') ? Math.round(priceIdr * 0.75) : priceIdr;
+      return (ac === 'child' || ac === 'infant') ? Math.round(basePrice * 0.75) : basePrice;
     };
-    const itemsPayload = passengers.map((p: any) => ({
-      id: crypto.randomUUID(),
-      bookingId,
-      productId,
-      inventoryId: inventoryId || null,
-      unit_price: unitPriceFor(p?.ageCategory),
-      quantity: 1,
-      item_date: departureDate || nowIso,
-      subtotal: unitPriceFor(p?.ageCategory),
-      participant_name: `${String(p.firstName || '').trim()} ${String(p.lastName || '').trim()}`.trim() || null,
-      participant_email: null,
-      participant_phone: null,
-      special_requirements: JSON.stringify({
-        title: String(p.title || ''),
-        firstName: String(p.firstName || ''),
-        lastName: String(p.lastName || ''),
-        nationality: String(p.nationality || ''),
-        identityType: String(p.identityType || ''),
-        idNumber: String(p.idNumber || ''),
-        ageCategory: String(p.ageCategory || ''),
-        notes: String(contact?.specialRequests || ''),
-      }),
-    }));
+    let itemsPayload: any[] = [];
+    if (legInfos.length > 0) {
+      for (const lg of legInfos) {
+        for (const p of passengers) {
+          const basePrice = Number(lg.priceIdr || 0);
+          const price = unitPriceFor(p?.ageCategory, basePrice);
+          const notesBase = typeof lg.notes === 'string' && lg.notes ? lg.notes : String(contact?.specialRequests || '');
+          const metaNotes = (() => {
+            try {
+              const obj = notesBase ? JSON.parse(notesBase) : {};
+              if (lg.rtType && !obj.rtType) obj.rtType = lg.rtType;
+              return JSON.stringify(obj);
+            } catch {
+              return JSON.stringify({ rtType: lg.rtType || undefined, userNotes: notesBase || '' });
+            }
+          })();
+          itemsPayload.push({
+            id: crypto.randomUUID(),
+            bookingId,
+            productId: lg.productId,
+            inventoryId: lg.inventoryId ?? inventoryId ?? null,
+            unit_price: price,
+            quantity: 1,
+            item_date: lg.departureDate || nowIso,
+            subtotal: price,
+            participant_name: `${String(p.firstName || '').trim()} ${String(p.lastName || '').trim()}`.trim() || null,
+            participant_email: null,
+            participant_phone: null,
+            special_requirements: JSON.stringify({
+              title: String(p.title || ''),
+              firstName: String(p.firstName || ''),
+              lastName: String(p.lastName || ''),
+              nationality: String(p.nationality || ''),
+              identityType: String(p.identityType || ''),
+              idNumber: String(p.idNumber || ''),
+              ageCategory: String(p.ageCategory || ''),
+              notes: metaNotes,
+            }),
+          });
+        }
+      }
+      // Set main tenantId/productId based on first leg for booking linkage
+      tenantId = legInfos[0]?.tenantId || tenantId;
+    } else {
+      itemsPayload = passengers.map((p: any) => {
+        const price = unitPriceFor(p?.ageCategory, priceIdr);
+        return ({
+          id: crypto.randomUUID(),
+          bookingId,
+          productId,
+          inventoryId: inventoryId || null,
+          unit_price: price,
+          quantity: 1,
+          item_date: departureDate || nowIso,
+          subtotal: price,
+          participant_name: `${String(p.firstName || '').trim()} ${String(p.lastName || '').trim()}`.trim() || null,
+          participant_email: null,
+          participant_phone: null,
+          special_requirements: JSON.stringify({
+            title: String(p.title || ''),
+            firstName: String(p.firstName || ''),
+            lastName: String(p.lastName || ''),
+            nationality: String(p.nationality || ''),
+            identityType: String(p.identityType || ''),
+            idNumber: String(p.idNumber || ''),
+            ageCategory: String(p.ageCategory || ''),
+            notes: String(contact?.specialRequests || ''),
+          }),
+        });
+      });
+    }
     const passengerTotal = itemsPayload.reduce((acc: number, it: any) => acc + Number(it.subtotal || 0), 0);
     const totalAmount = (Number.isFinite(totalAmountFromClient) && totalAmountFromClient > 0) ? totalAmountFromClient : (passengerTotal + portFee);
 
-    const phoneCombined = `${String(contact?.countryCode || '')} ${String(contact?.phone || '')}`.trim();
+    const phoneInput = String(contact?.phone || '').trim();
+    const ccInput = String(contact?.countryCode || '').trim();
+    const phoneCombined = (() => {
+      const ccRaw = ccInput.replace(/[^\d+]/g, '');
+      const ccDigits = ccRaw.startsWith('+') ? ccRaw.slice(1).replace(/\D/g, '') : ccRaw.replace(/\D/g, '');
+      const rawDigits = phoneInput.replace(/\D/g, '');
+      let localDigits = rawDigits;
+      if (ccDigits && localDigits.startsWith(ccDigits)) {
+        localDigits = localDigits.slice(ccDigits.length);
+      }
+      localDigits = localDigits.replace(/^0+/, '');
+      if (ccDigits) {
+        return localDigits ? ('+' + ccDigits + localDigits) : '';
+      }
+      const keep = phoneInput.replace(/[^\d+]/g, '');
+      if (keep.startsWith('+')) {
+        const q = '+' + keep.replace(/^\+/, '').replace(/\D/g, '');
+        return q;
+      }
+      return localDigits ? ('+62' + localDigits) : '';
+    })();
     const notes = String(contact?.specialRequests || '');
 
     let booking: any = null;
     if (useSupabase) {
-      const createBookingRes = await fetch(`${supabaseUrl}/rest/v1/bookings`, {
-        method: 'POST',
-        headers: {
-          apikey: serviceKey,
-          Authorization: `Bearer ${serviceKey}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=representation',
-        },
-        body: JSON.stringify({
-          id: bookingId,
-          tenantId,
-          customerId,
-          booking_code: bookingCode,
-          currency: 'IDR',
-          total_amount: totalAmount,
-          status: 'PENDING',
-          booking_date: departureDate || nowIso,
-          customer_name: userFullName,
-          customer_email: userEmail,
-          customer_phone: phoneCombined || null,
-          customer_notes: notes || null,
-          updatedAt: new Date().toISOString(),
-        }),
-      });
-      if (createBookingRes.ok) {
-        const createdBookings = await createBookingRes.json();
-        booking = createdBookings?.[0];
-      } else {
+      try {
+        const createBookingRes = await fetch(`${supabaseUrl}/rest/v1/bookings`, {
+          method: 'POST',
+          headers: {
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=representation',
+          },
+          body: JSON.stringify({
+            id: bookingId,
+            tenantId,
+            customerId,
+            booking_code: bookingCode,
+            currency: 'IDR',
+            total_amount: totalAmount,
+            status: 'PENDING',
+            booking_date: (() => {
+              if (legInfos.length > 0) {
+                try {
+                  const dates = legInfos.map((lg) => lg.departureDate).filter(Boolean);
+                  const min = dates.sort()[0];
+                  return min || nowIso;
+                } catch { return nowIso; }
+              }
+              return departureDate || nowIso;
+            })(),
+            customer_name: userFullName,
+            customer_email: userEmail,
+            customer_phone: phoneCombined || null,
+            customer_notes: notes || null,
+            updatedAt: new Date().toISOString(),
+          }),
+        });
+        if (createBookingRes.ok) {
+          const createdBookings = await createBookingRes.json();
+          booking = createdBookings?.[0];
+        }
+      } catch {}
+      if (!booking) {
         booking = await prisma.booking.create({
           data: {
             id: bookingId,
@@ -269,7 +412,16 @@ export async function POST(request: Request) {
             currency: 'IDR',
             totalAmount: String(totalAmount),
             status: 'PENDING',
-            bookingDate: departureDate ? new Date(departureDate) : new Date(nowIso),
+            bookingDate: (() => {
+              if (legInfos.length > 0) {
+                try {
+                  const dates = legInfos.map((lg) => lg.departureDate).filter(Boolean);
+                  const min = dates.sort()[0];
+                  return new Date(min || nowIso);
+                } catch { return new Date(nowIso); }
+              }
+              return departureDate ? new Date(departureDate) : new Date(nowIso);
+            })(),
             customerName: userFullName,
             customerEmail: userEmail,
             customerPhone: phoneCombined || null,
@@ -287,7 +439,16 @@ export async function POST(request: Request) {
           currency: 'IDR',
           totalAmount: String(totalAmount),
           status: 'PENDING',
-          bookingDate: departureDate ? new Date(departureDate) : new Date(nowIso),
+          bookingDate: (() => {
+            if (legInfos.length > 0) {
+              try {
+                const dates = legInfos.map((lg) => lg.departureDate).filter(Boolean);
+                const min = dates.sort()[0];
+                return new Date(min || nowIso);
+              } catch { return new Date(nowIso); }
+            }
+            return departureDate ? new Date(departureDate) : new Date(nowIso);
+          })(),
           customerName: userFullName,
           customerEmail: userEmail,
           customerPhone: phoneCombined || null,
@@ -299,19 +460,22 @@ export async function POST(request: Request) {
     let items: any[] = [];
     if (itemsPayload.length > 0) {
       if (useSupabase) {
-        const createItemsRes = await fetch(`${supabaseUrl}/rest/v1/booking_items`, {
-          method: 'POST',
-          headers: {
-            apikey: serviceKey,
-            Authorization: `Bearer ${serviceKey}`,
-            'Content-Type': 'application/json',
-            Prefer: 'return=representation',
-          },
-          body: JSON.stringify(itemsPayload),
-        });
-        if (createItemsRes.ok) {
-          items = await createItemsRes.json();
-        } else {
+        try {
+          const createItemsRes = await fetch(`${supabaseUrl}/rest/v1/booking_items`, {
+            method: 'POST',
+            headers: {
+              apikey: serviceKey,
+              Authorization: `Bearer ${serviceKey}`,
+              'Content-Type': 'application/json',
+              Prefer: 'return=representation',
+            },
+            body: JSON.stringify(itemsPayload),
+          });
+          if (createItemsRes.ok) {
+            items = await createItemsRes.json();
+          }
+        } catch {}
+        if (!items.length) {
           for (const it of itemsPayload) {
             const created = await prisma.bookingItem.create({
               data: {
@@ -357,18 +521,20 @@ export async function POST(request: Request) {
 
     if (!inventoryId && productId && departureDate) {
       if (useSupabase) {
-        const invSelect = ['id','productId','inventoryDate','availableUnits','bookedUnits'].join(',');
-        const invRes = await fetch(`${supabaseUrl}/rest/v1/inventory?select=${encodeURIComponent(invSelect)}&productId=eq.${encodeURIComponent(productId)}&inventoryDate=eq.${encodeURIComponent(departureDate)}&is_available=eq.true&limit=1`, {
-          headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-          cache: 'no-store',
-        });
-        if (invRes.ok) {
-          const invData = await invRes.json();
-          const inv = Array.isArray(invData) && invData.length > 0 ? invData[0] : null;
-          if (inv) {
-            inventoryId = String(inv.id || '');
+        try {
+          const invSelect = ['id','productId','inventoryDate','availableUnits','bookedUnits'].join(',');
+          const invRes = await fetch(`${supabaseUrl}/rest/v1/inventory?select=${encodeURIComponent(invSelect)}&productId=eq.${encodeURIComponent(productId)}&inventoryDate=eq.${encodeURIComponent(departureDate)}&is_available=eq.true&limit=1`, {
+            headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+            cache: 'no-store',
+          });
+          if (invRes.ok) {
+            const invData = await invRes.json();
+            const inv = Array.isArray(invData) && invData.length > 0 ? invData[0] : null;
+            if (inv) {
+              inventoryId = String(inv.id || '');
+            }
           }
-        }
+        } catch {}
       } else {
         const inv = await prisma.inventory.findFirst({ where: { productId, inventoryDate: new Date(`${departureDate}T00:00:00.000Z`), isAvailable: true } });
         if (inv) inventoryId = String(inv.id || '');
@@ -402,10 +568,52 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Missing booking identifier' }, { status: 400 });
     }
 
+    const supa = await getSupabaseServerClient() as any;
+    let { data: { user } } = await supa.auth.getUser();
+    if (!user) {
+      const authz = request.headers.get('authorization') || request.headers.get('Authorization') || '';
+      const m = authz.match(/^Bearer\s+(.+)$/i);
+      const token = m ? m[1].trim() : '';
+      if (token) {
+        try {
+          const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '') as string;
+          const anon = (
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+            process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+            process.env.SUPABASE_ANON_KEY ||
+            process.env.SUPABASE_PUBLISHABLE_KEY ||
+            ''
+          ) as string;
+          const supaDirect = createClient(url, anon);
+          const ures = await supaDirect.auth.getUser(token);
+          user = ures.data.user;
+        } catch {}
+      }
+    }
+    if (!user) {
+      return NextResponse.json({ error: 'Login required' }, { status: 401 });
+    }
+
     if (action === 'pay') {
       const existing = await prisma.booking.findUnique({ where });
       if (!existing) {
         return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+      }
+      const userEmail = String(user.email || '').trim().toLowerCase();
+      let publicUserId: string | null = null;
+      if (userEmail) {
+        try {
+          const u = await prisma.user.findFirst({ where: { email: userEmail }, select: { id: true } });
+          publicUserId = u?.id || null;
+        } catch {}
+      }
+      const isOwner = (
+        existing.customerId === user.id ||
+        (publicUserId && existing.customerId === publicUserId) ||
+        (userEmail && ((existing as any)?.customerEmail || '').trim().toLowerCase() === userEmail)
+      );
+      if (!isOwner) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
       if (existing.status === 'PAID' || existing.status === 'COMPLETED') {
         const updated = await prisma.booking.update({
@@ -420,6 +628,9 @@ export async function PUT(request: Request) {
           },
         });
         return NextResponse.json({ booking: updated });
+      }
+      if (existing.status !== 'PENDING') {
+        return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
       }
       const result = await prisma.$transaction(async (tx) => {
         const updated = await tx.booking.update({
@@ -585,6 +796,56 @@ export async function PUT(request: Request) {
         await prisma.inventory.update({ where: { id: invId }, data: { availableUnits: newAvail, bookedUnits: newBooked, updatedAt: new Date() } });
       }
       return NextResponse.json({ booking: updated });
+    }
+
+    if (action === 'refund-item') {
+      const itemId = String(body?.itemId || '');
+      const reason = String(body?.reason || '').trim();
+      if (!itemId) {
+        return NextResponse.json({ error: 'Missing itemId' }, { status: 400 });
+      }
+      const booking = await prisma.booking.findUnique({ where, include: { items: true } });
+      if (!booking) {
+        return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+      }
+      const targetItem = booking.items.find((it) => String(it.id) === itemId);
+      if (!targetItem) {
+        return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+      }
+      if (targetItem.isCancelled) {
+        return NextResponse.json({ booking });
+      }
+      const updatedItem = await prisma.bookingItem.update({
+        where: { id: targetItem.id },
+        data: { isCancelled: true, cancelledAt: new Date() },
+      });
+      if (updatedItem.inventoryId) {
+        const inv = await prisma.inventory.findUnique({ where: { id: String(updatedItem.inventoryId) } });
+        if (inv) {
+          const qty = Number(updatedItem.quantity || 0);
+          const newAvail = Math.min(inv.totalCapacity || 0, (inv.availableUnits || 0) + qty);
+          const newBooked = Math.max(0, (inv.bookedUnits || 0) - qty);
+          await prisma.inventory.update({ where: { id: inv.id }, data: { availableUnits: newAvail, bookedUnits: newBooked, updatedAt: new Date() } });
+        }
+      }
+      const updatedBooking = await prisma.booking.update({
+        where,
+        data: {
+          status: 'PENDING',
+          cancellationReason: reason ? `Partial refund: ${reason}` : 'Partial refund requested',
+          updatedAt: new Date(),
+        },
+        include: {
+          items: {
+            include: {
+              product: { include: { fastboatSchedule: true } },
+              inventory: true,
+            },
+          },
+          tenant: true,
+        },
+      });
+      return NextResponse.json({ booking: updatedBooking });
     }
 
     if (action === 'expire') {
@@ -885,6 +1146,20 @@ export async function GET(request: Request) {
     if (!b) {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
+    const emailLower = (email || '').trim().toLowerCase();
+    let publicUserId: string | null = null;
+    if (emailLower) {
+      try {
+        const u = await prisma.user.findFirst({ where: { email: emailLower }, select: { id: true } });
+        publicUserId = u?.id || null;
+      } catch {}
+    }
+    const allowed = (!!userId && b.customerId === userId)
+      || (emailLower && ((b as any)?.customerEmail || '').trim().toLowerCase() === emailLower)
+      || (!!publicUserId && b.customerId === publicUserId);
+    if (!allowed) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     try {
       if (b.status === 'PAID') {
         const firstItem = b.items[0];
@@ -1056,8 +1331,7 @@ export async function GET(request: Request) {
           } catch {}
         }
       }
-      const suffix = rtType === 'OUTBOUND' ? 'Pergi' : rtType === 'INBOUND' ? 'Pulang' : '';
-      if (suffix) title = `${title} \u2022 ${suffix}`;
+      // Do not append trip direction suffix to title anymore
     } catch {}
     const featured = firstItem?.product?.featuredImage || null;
     const location = sched && sched.departureRoute && sched.arrivalRoute
@@ -1084,6 +1358,15 @@ export async function GET(request: Request) {
     const departureTime = (sched as any)?.departureTime ?? null;
     const arrivalTime = (sched as any)?.arrivalTime ?? null;
     let arrivalAt: string | null = null;
+    let returnLocation: string | null = null;
+    let returnDate: string | null = null;
+    let returnDepartureTime: string | null = null;
+    let returnArrivalTime: string | null = null;
+    let returnBoatName: string | null = null;
+    let returnVendorName: string | null = null;
+    let departurePassengers: number | null = null;
+    let returnPassengers: number | null = null;
+    let isDoubleTrip: boolean = false;
     try {
       if (invDate && arrivalTime) {
         const parts = String(arrivalTime).split(':');
@@ -1093,6 +1376,64 @@ export async function GET(request: Request) {
         d.setHours(hh, mm, 0, 0);
         arrivalAt = d.toISOString();
       }
+      try {
+        const arrItems = Array.isArray(b?.items) ? b.items : [];
+        let outQty = 0;
+        let inQty = 0;
+        let hasOut = false;
+        let hasIn = false;
+        for (const it of arrItems) {
+          try {
+            const sr = (it as any)?.specialRequirements || '';
+            const obj = sr ? JSON.parse(String(sr)) : {};
+            const notesField = obj?.notes || '';
+            if (typeof notesField === 'string' && notesField) {
+              try {
+                const inner = JSON.parse(String(notesField));
+                const t = String(inner?.rtType || '').toUpperCase();
+                if (t === 'INBOUND') {
+                  const rs = (it as any)?.product?.fastboatSchedule || null;
+                  const depRoute = (rs as any)?.departureRoute?.name || '';
+                  const arrRoute = (rs as any)?.arrivalRoute?.name || '';
+                  if (!returnLocation) {
+                    returnLocation = depRoute && arrRoute ? `${depRoute} → ${arrRoute}` : null;
+                  }
+                  const itDate = (it as any)?.itemDate || ((it as any)?.inventory?.inventoryDate ?? null);
+                  if (!returnDate) {
+                    returnDate = itDate ? new Date(itDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
+                  }
+                  if (!returnDepartureTime) {
+                    returnDepartureTime = (rs as any)?.departureTime ?? null;
+                  }
+                  if (!returnArrivalTime) {
+                    returnArrivalTime = (rs as any)?.arrivalTime ?? null;
+                  }
+                  if (!returnBoatName) {
+                    const bn = (rs as any)?.boat?.name || '';
+                    returnBoatName = bn || null;
+                  }
+                  if (!returnVendorName) {
+                    const vn = (b as any)?.tenant?.vendorName || null;
+                    returnVendorName = vn;
+                  }
+                  inQty += Number((it as any)?.quantity || 0);
+                  hasIn = true;
+                } else if (t === 'OUTBOUND') {
+                  outQty += Number((it as any)?.quantity || 0);
+                  hasOut = true;
+                }
+              } catch {}
+            }
+          } catch {}
+        }
+        if (outQty === 0 && inQty === 0) {
+          outQty = qty;
+          inQty = 0;
+        }
+        departurePassengers = outQty || null;
+        returnPassengers = inQty || null;
+        isDoubleTrip = hasOut && hasIn;
+      } catch {}
     } catch {}
     return {
       id: b.id,
@@ -1104,8 +1445,17 @@ export async function GET(request: Request) {
       departureDate,
       departureTime,
       arrivalTime,
+      returnLocation,
+      returnDate,
+      returnDepartureTime,
+      returnArrivalTime,
+      returnBoatName,
+      returnVendorName,
       arrivalAt,
       passengers: qty,
+      departurePassengers,
+      returnPassengers,
+      isDoubleTrip,
       bookingCode: b.bookingCode,
       status,
       image: featured,

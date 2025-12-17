@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Group, Text, Anchor, Checkbox, Button, Paper, Stack, Title, TextInput, ActionIcon } from '@mantine/core';
 import { IconEye, IconEyeOff } from '@tabler/icons-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -14,6 +14,54 @@ export default function AuthRegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [agree, setAgree] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [registerSubmitting, setRegisterSubmitting] = useState(false);
+  const redirectParam = (() => {
+    try {
+      const raw = searchParams.get('redirectTo') || '';
+      if (raw) {
+        const decoded = decodeURIComponent(raw);
+        return decoded || '/';
+      }
+      let fallback = '/';
+      try {
+        const ref = typeof document !== 'undefined' ? document.referrer || '' : '';
+        if (ref && typeof window !== 'undefined') {
+          const u = new URL(ref);
+          if (u.origin === window.location.origin) {
+            fallback = `${u.pathname}${u.search}`;
+          }
+        }
+      } catch {}
+      if (fallback === '/') {
+        try {
+          const last = typeof window !== 'undefined' ? (localStorage.getItem('last_path') || '') : '';
+          if (last) fallback = last;
+        } catch {}
+      }
+      return fallback || '/';
+    } catch { return '/'; }
+  })();
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!active) return;
+      if (session) {
+        const raw = searchParams.get('redirectTo') || '/';
+        const r = raw ? decodeURIComponent(raw) : '/';
+        router.replace(r || '/');
+      }
+    })();
+    const { data: sub } = (supabase as any).auth.onAuthStateChange((_event: any, s: any) => {
+      if (s) {
+        const raw = searchParams.get('redirectTo') || '/';
+        const r = raw ? decodeURIComponent(raw) : '/';
+        router.replace(r || '/');
+      }
+    });
+    return () => { active = false; try { sub?.subscription?.unsubscribe?.(); } catch {} };
+  }, []);
 
   const createInitialSvg = (letter: string) => {
     const L = (letter || 'N').slice(0, 1).toUpperCase();
@@ -28,14 +76,18 @@ export default function AuthRegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (registerSubmitting) return;
+    setRegisterSubmitting(true);
     if (!agree) {
       setError('Anda harus menyetujui syarat & ketentuan');
+      setRegisterSubmitting(false);
       return;
     }
     const normalizedEmail = (email || '').trim().toLowerCase().replace(/[\u200B-\u200D\uFEFF]/g, '');
     const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
     if (!emailRegex.test(normalizedEmail)) {
       setError(`Email address "${email}" is invalid`);
+      setRegisterSubmitting(false);
       return;
     }
     const { data, error: err } = await supabase.auth.signUp({ email: normalizedEmail, password });
@@ -46,6 +98,7 @@ export default function AuthRegisterPage() {
       } else {
         setError(msg);
       }
+      setRegisterSubmitting(false);
       return;
     }
 
@@ -65,16 +118,26 @@ export default function AuthRegisterPage() {
         body: JSON.stringify({ userId: publicId, email: normalizedEmail, role: 'CUSTOMER', avatarUrl }),
       });
     } catch (_) {}
-    router.push('/');
+    const raw = searchParams.get('redirectTo') || '/';
+    const r = raw ? decodeURIComponent(raw) : '/';
+    setRegisterSubmitting(false);
+    router.push(r || '/');
   };
 
   const handleGoogleRegister = async () => {
     try {
-      const redirectTo = '/';
+      const base = process.env.NEXT_PUBLIC_SUPABASE_REDIRECT_URL;
+      if (!base) {
+        setError('Konfigurasi redirect URL belum diset (NEXT_PUBLIC_SUPABASE_REDIRECT_URL)');
+        return;
+      }
+      const raw = searchParams.get('redirectTo') || '/';
+      const rto = encodeURIComponent(raw ? decodeURIComponent(raw) : '/');
+      const redirectTo = `${base}/register?auth_flow=register&redirectTo=${rto}`;
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/` : undefined,
+          redirectTo,
         },
       });
     } catch (err) {
@@ -107,10 +170,10 @@ export default function AuthRegisterPage() {
                 </div>
                 <Group justify="space-between" align="center">
                   <Checkbox checked={agree} onChange={(e) => setAgree(e.currentTarget.checked)} label={<Text style={{ fontSize: 14, color: '#111827' }}>I agree to Terms & Privacy</Text>} styles={{ input: { borderColor: '#d1d5db' }, label: { cursor: 'pointer' } }} />
-                  <Anchor href="/login" style={{ fontSize: 14, color: '#111827' }}>Already have an account?</Anchor>
+                  <Anchor href={`/login?redirectTo=${encodeURIComponent(redirectParam || '/')}`} style={{ fontSize: 14, color: '#111827' }}>Already have an account?</Anchor>
                 </Group>
                 {error && <Text style={{ color: '#ef4444' }}>{error}</Text>}
-                <Button type="submit" fullWidth styles={{ root: { backgroundColor: '#284361', height: 44, fontWeight: 600 } }}>Create Account</Button>
+                <Button type="submit" fullWidth styles={{ root: { backgroundColor: '#284361', height: 44, fontWeight: 600 } }} loading={registerSubmitting}>Create Account</Button>
                 <Box style={{ textAlign: 'center' }}>
                   <Text style={{ fontSize: 14, color: '#6b7280' }}>Or Register With</Text>
                 </Box>
@@ -122,7 +185,7 @@ export default function AuthRegisterPage() {
                 </Button>
                 <Text style={{ marginTop: 24, textAlign: 'center', fontSize: 14, color: '#6b7280' }}>
                   Have an account? {" "}
-                  <Anchor href="/login" style={{ color: '#284361', fontWeight: 600 }}>Login now</Anchor>
+                  <Anchor href={`/login?redirectTo=${encodeURIComponent(redirectParam || '/')}`} style={{ color: '#284361', fontWeight: 600 }}>Login now</Anchor>
                 </Text>
               </Stack>
             </form>

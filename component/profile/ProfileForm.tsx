@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Box, Paper, Group, Text, ActionIcon, Grid, Button, Select, TextInput, Modal, Stack, Tabs } from '@mantine/core';
 import { Camera } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
+import { useSetAuth, useAuth } from '@/app/providers';
 
 type ProfileInitialValues = {
   id?: string;
@@ -39,6 +40,10 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [avatarTab, setAvatarTab] = useState<'file' | 'url'>('file');
   const [avatarUrlInput, setAvatarUrlInput] = useState('');
+  const setAuth = useSetAuth();
+  const auth = useAuth();
+  const [avatarSrc, setAvatarSrc] = useState<string>('');
+  const [isGoogle, setIsGoogle] = useState(false);
 
   // Avatar will be shown from database-only; fallback displays plain circle
 
@@ -50,6 +55,36 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
       }));
     }
   }, [props.initialValues]);
+  useEffect(() => {
+    const url = String(formData.avatarUrl || '');
+    setAvatarSrc(url || '');
+    const idx = url.indexOf('/storage/v1/object/public/avatars/');
+    if (idx >= 0) {
+      const path = url.slice(idx + '/storage/v1/object/public/avatars/'.length);
+      if (path) {
+        (async () => {
+          try {
+            const res = await (supabase as any).storage.from('avatars').createSignedUrl(path, 3600);
+            const signed = res?.data?.signedUrl || '';
+            if (signed) setAvatarSrc(signed);
+          } catch {}
+        })();
+      }
+    }
+  }, [formData.avatarUrl]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const identities = Array.isArray((session?.user as any)?.identities) ? (session as any).user.identities : [];
+        const appMeta = (session?.user as any)?.app_metadata || {};
+        const prov = String(appMeta?.provider || '').toLowerCase();
+        const provs = Array.isArray(appMeta?.providers) ? appMeta.providers.map((p: any) => String(p || '').toLowerCase()) : [];
+        const hasGoogle = identities.some((i: any) => String(i?.provider || '').toLowerCase() === 'google') || prov === 'google' || provs.includes('google');
+        setIsGoogle(!!hasGoogle);
+      } catch {}
+    })();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,7 +129,10 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
         body: JSON.stringify({ userId: uid, avatarUrl: publicUrl }),
       });
       setAvatarMessage(resp.ok ? 'Foto berhasil diperbarui' : 'Gagal menyimpan avatar');
-      if (resp.ok) setAvatarOpen(false);
+      if (resp.ok) {
+        setAvatarOpen(false);
+        try { setAuth(auth ? ({ ...auth, avatarUrl: publicUrl }) : auth); } catch {}
+      }
     } catch (ex: any) {
       setAvatarMessage(ex?.message || 'Terjadi kesalahan');
     } finally {
@@ -123,6 +161,7 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
         setFormData((prev) => ({ ...prev, avatarUrl: raw }));
         setAvatarMessage('Foto berhasil diperbarui');
         setAvatarOpen(false);
+        try { setAuth(auth ? ({ ...auth, avatarUrl: raw }) : auth); } catch {}
       } else {
         setAvatarMessage('Gagal menyimpan avatar');
       }
@@ -151,8 +190,8 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
               fontSize: 24,
             }}
           >
-            {formData.avatarUrl ? (
-              <img src={formData.avatarUrl} alt="avatar" style={{ width: 96, height: 96, borderRadius: '9999px', objectFit: 'cover' }} />
+            {avatarSrc ? (
+              <img src={avatarSrc} alt="avatar" style={{ width: 96, height: 96, borderRadius: '9999px', objectFit: 'cover' }} />
             ) : null}
           </Box>
           <ActionIcon
@@ -162,7 +201,6 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
             radius={9999}
             style={{ position: 'absolute', right: 0, bottom: 0, backgroundColor: '#2dbe8d' }}
             onClick={onPickFile}
-            disabled={avatarUploading}
           >
             <Camera size={16} color="#ffffff" />
           </ActionIcon>
@@ -179,6 +217,15 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
             Upload a new photo to personalize your account
           </Text>
         </Box>
+        <Paper withBorder radius={12} p={16} style={{ borderColor: '#e5e7eb', backgroundColor: '#ffffff', minHeight: 30, width: 240, marginLeft: 'auto' }}>
+          <Group justify="space-between" align="center">
+            <Group align="center" gap={12}>
+              <img src="https://www.google.com/favicon.ico" alt="Google" style={{ width: 20, height: 20 }} />
+              <Text size="13px" fw={500} c="#111827">Google Account</Text>
+            </Group>
+            <Text size="13px" fw={600} c={isGoogle ? '#10b981' : '#9ca3af'}>{isGoogle ? 'Connected' : 'Not connected'}</Text>
+          </Group>
+        </Paper>
       </Group>
 
       <Grid gutter={24} mb={32}>
@@ -289,7 +336,7 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
       <Text size="sm" c="#6b7280">
         Your profile helps us personalize your booking experience.
       </Text>
-      <Modal opened={cpOpen} onClose={() => { setCpOpen(false); setCpMessage(null); }} centered withCloseButton title="Reset Password">
+          <Modal opened={cpOpen} onClose={() => { setCpOpen(false); setCpMessage(null); }} centered withCloseButton title="Reset Password">
         <form onSubmit={async (e) => {
           e.preventDefault();
           setCpMessage(null);
@@ -301,7 +348,13 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
           }
           try {
             setCpSubmitting(true);
-            const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : undefined;
+            const base = process.env.NEXT_PUBLIC_SUPABASE_REDIRECT_URL;
+            if (!base) {
+              setCpMessage('Konfigurasi redirect URL belum diset (NEXT_PUBLIC_SUPABASE_REDIRECT_URL)');
+              return;
+            }
+            const next = encodeURIComponent('/reset-password');
+            const redirectTo = `${base}/auth/confirm?next=${next}`;
             const { error } = await (supabase as any).auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
             if (error) {
               setCpMessage(error.message || 'Gagal mengirim tautan reset');
@@ -319,7 +372,7 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
             {cpMessage && <Text style={{ color: cpMessage.includes('dikirim') ? '#10b981' : '#ef4444' }}>{cpMessage}</Text>}
             <Group justify="flex-end">
               <Button variant="light" onClick={() => { setCpOpen(false); setCpMessage(null); }} disabled={cpSubmitting}>Batal</Button>
-              <Button type="submit" styles={{ root: { backgroundColor: '#284361' } }} disabled={cpSubmitting}>{cpSubmitting ? 'Mengirim...' : 'Kirim tautan reset'}</Button>
+              <Button type="submit" styles={{ root: { backgroundColor: '#284361' } }} disabled={cpSubmitting} loading={cpSubmitting}>{cpSubmitting ? 'Mengirim...' : 'Kirim tautan reset'}</Button>
             </Group>
           </Stack>
         </form>
@@ -333,7 +386,7 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
           </Tabs.List>
           <Tabs.Panel value="file" pt="md">
             <Stack gap={12}>
-              <Button onClick={() => fileRef.current?.click()} disabled={avatarUploading} styles={{ root: { backgroundColor: '#284361' } }}>Pilih File</Button>
+              <Button disabled styles={{ root: { backgroundColor: '#284361' } }}>Pilih File</Button>
               {avatarMessage && <Text style={{ color: avatarMessage.includes('berhasil') ? '#10b981' : '#ef4444' }}>{avatarMessage}</Text>}
             </Stack>
           </Tabs.Panel>

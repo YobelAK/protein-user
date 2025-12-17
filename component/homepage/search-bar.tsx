@@ -13,7 +13,8 @@ import {
   Text, 
   Checkbox, 
   Group,
-  Stack
+  Stack,
+  Loader
 } from '@mantine/core';
 import { 
   IconCalendar, 
@@ -32,6 +33,7 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
   const [returnTrip, setReturnTrip] = useState(false);
   const router = useRouter();
   const [isMobile, setIsMobile] = useState(false);
+  const [searching, setSearching] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
     const update = () => setIsMobile(mq.matches);
@@ -53,7 +55,7 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
   const [ret, setRet] = useState<string>('');
   const [showPassengerSelector, setShowPassengerSelector] = useState(false);
   const passengerRef = useRef<HTMLDivElement>(null);
-  const [passengerCounts, setPassengerCounts] = useState<PassengerCounts>({ adult: 2, child: 0, infant: 0 });
+  const [passengerCounts, setPassengerCounts] = useState<PassengerCounts>({ adult: 1, child: 0, infant: 0 });
   const departureInputRef = useRef<HTMLInputElement>(null);
   const returnInputRef = useRef<HTMLInputElement>(null);
 
@@ -98,6 +100,7 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
   };
 
   const handleSearch = () => {
+    setSearching(true);
     if (returnTrip) {
       try { localStorage.removeItem('rt_inbound_selected'); } catch {}
       try { localStorage.removeItem('rt_passengers'); } catch {}
@@ -106,6 +109,9 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
       try { localStorage.removeItem('rt_inbound_selected'); } catch {}
       try { localStorage.removeItem('rt_passengers'); } catch {}
     }
+    try {
+      localStorage.setItem('rt_passenger_counts', JSON.stringify(passengerCounts));
+    } catch {}
     const params = new URLSearchParams();
     if (from) params.set('from', from);
     if (to) params.set('to', to);
@@ -196,6 +202,7 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
                       data={fromOptions}
                       value={from}
                       onChange={setFrom}
+                      disabled={searching}
                       rightSection={<IconChevronDown size={16} />}
                       styles={{
                         input: {
@@ -215,6 +222,7 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
                       data={toOptions}
                       value={to}
                       onChange={setTo}
+                      disabled={searching}
                       rightSection={<IconChevronDown size={16} />}
                       styles={{
                         input: {
@@ -261,6 +269,7 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
                     value={departure}
                     onChange={(e) => handleDepartureChange(e.currentTarget.value)}
                     min={todayStr}
+                    disabled={searching}
                     max={(() => {
                       if (!returnTrip || !ret) return undefined;
                       const [yy, mm, dd] = ret.split('-').map((s) => Number(s));
@@ -336,7 +345,6 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
                     <TextInput
                       type="date"
                       placeholder="mm/dd/yyyy"
-                      disabled={!returnTrip}
                       leftSection={
                         <Box
                           onClick={() => {
@@ -381,6 +389,7 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
                         const clamped = (!val || val < minRet) ? minRet : val;
                         setRet(clamped);
                       }}
+                      disabled={!returnTrip || searching}
                       min={(() => {
                         const base = departure || todayStr;
                         const [yy, mm, dd] = base.split('-').map((s) => Number(s));
@@ -430,6 +439,7 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
                         leftSection={<IconUsers size={16} />}
                         rightSection={<IconChevronDown size={16} />}
                         onClick={() => setShowPassengerSelector(!showPassengerSelector)}
+                        disabled={searching}
                         styles={{
                           root: {
                             backgroundColor: '#f5f7fa',
@@ -466,11 +476,17 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
                       }
                     }}
                     onClick={handleSearch}
+                    loading={searching}
                   >
                     Search
                   </Button>
                 </Grid.Col>
               </Grid>
+              {searching && (
+                <Box style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
+                  <Loader color="#284361" />
+                </Box>
+              )}
             </Tabs.Panel>
 
             <Tabs.Panel value="watersport">

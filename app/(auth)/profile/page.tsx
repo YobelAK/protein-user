@@ -15,6 +15,7 @@ export default function Page() {
   const [initial, setInitial] = useState<any>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [requireName, setRequireName] = useState(false);
+  const [isGoogle, setIsGoogle] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -26,6 +27,14 @@ export default function Page() {
       }
       const uid = session.user.id || '';
       const email = session.user.email || '';
+      try {
+        const identities = Array.isArray((session.user as any)?.identities) ? (session.user as any).identities : [];
+        const hasGoogleIdentity = identities.some((i: any) => String(i?.provider || '').toLowerCase() === 'google');
+        const appMeta = (session.user as any)?.app_metadata || {};
+        const prov = String(appMeta?.provider || '').toLowerCase();
+        const provs = Array.isArray(appMeta?.providers) ? appMeta.providers.map((p: any) => String(p || '').toLowerCase()) : [];
+        setIsGoogle(hasGoogleIdentity || prov === 'google' || provs.includes('google'));
+      } catch {}
       const query = email ? `email=${encodeURIComponent(email)}` : `userId=${encodeURIComponent(uid)}`;
       let data: any = null;
       const res = await fetch(`/api/profile?${query}`, { cache: 'no-store' });
@@ -82,6 +91,7 @@ export default function Page() {
           <Text style={{ color: '#6b7280', marginBottom: 32 }}>
             Manage your account and preferences easily.
           </Text>
+          
           <Box style={{ position: 'relative' }}>
             <LoadingOverlay visible={loading} />
             <Modal opened={saveStatus === 'success'} onClose={() => setSaveStatus('idle')} centered withCloseButton>

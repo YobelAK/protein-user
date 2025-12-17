@@ -3,7 +3,7 @@
 import React, { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Container, Box, Group, Text, ActionIcon, SimpleGrid, Stack, Grid } from '@mantine/core';
+import { Container, Box, Group, Text, ActionIcon, SimpleGrid, Stack, Grid, Loader } from '@mantine/core';
 import { IconArrowLeft } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
@@ -12,6 +12,30 @@ import { ContactForm } from '@/components/speedboat/contact-form';
 import { PassengerForm } from '@/components/speedboat/passenger-form';
 import { BookingSummary } from '@/components/speedboat/booking-summary';
 import { supabase } from '@/lib/supabase/client';
+
+function normalizePhoneE164(cc: string, num: string) {
+  const c = String(cc || '').trim();
+  const n = String(num || '').trim();
+  const ccDigitsRaw = c.replace(/[^\d+]/g, '');
+  const ccDigits = ccDigitsRaw.startsWith('+') ? ccDigitsRaw.slice(1).replace(/\D/g, '') : ccDigitsRaw.replace(/\D/g, '');
+  const rawDigits = n.replace(/\D/g, '');
+  let localDigits = rawDigits;
+  if (localDigits.startsWith(ccDigits)) {
+    localDigits = localDigits.slice(ccDigits.length);
+  }
+  localDigits = localDigits.replace(/^0+/, '');
+  if (ccDigits) {
+    if (!localDigits) return undefined as string | undefined;
+    const res = '+' + ccDigits + localDigits;
+    return /^\+[0-9]\d{1,14}$/.test(res) ? res : undefined;
+  }
+  const keep = n.replace(/[^\d+]/g, '');
+  if (keep.startsWith('+')) {
+    const q = '+' + keep.replace(/^\+/, '').replace(/\D/g, '');
+    return /^\+[0-9]\d{1,14}$/.test(q) ? q : undefined;
+  }
+  return undefined;
+}
 
 function BookingPageContent() {
   const searchParams = useSearchParams();
@@ -33,6 +57,7 @@ function BookingPageContent() {
     return `${a}${b}`;
   }, [origin, destination, origin2, destination2]);
   const [guestCount, setGuestCount] = useState<number>(1);
+  const [initialCounts, setInitialCounts] = useState<{ adult: number; child: number; infant: number }>({ adult: 1, child: 0, infant: 0 });
   const [contact, setContact] = useState<{ firstName: string; lastName: string; email: string; countryCode: string; phone: string; specialRequests?: string; agreed?: boolean }>({ firstName: '', lastName: '', email: '', countryCode: '+62', phone: '' });
   const [passengers, setPassengers] = useState<any[]>([]);
   const passengerPrice = useMemo(() => {
@@ -66,10 +91,14 @@ function BookingPageContent() {
   const [boat2, setBoat2] = useState<{ name?: string; code?: string; capacity?: number; duration?: string }>({});
   const [vendorName2, setVendorName2] = useState<string>('');
   const [inventoryDate2, setInventoryDate2] = useState<string>('');
+  const [loadingInbound, setLoadingInbound] = useState(false);
+  const [loadingOutbound, setLoadingOutbound] = useState(false);
+  const [continueLoading, setContinueLoading] = useState(false);
 
   React.useEffect(() => {
     const sid = searchParams.get('sid') ?? '';
     if (!sid) return;
+    setLoadingInbound(true);
     const url = departureDate ? `/api/speedboat/schedules?date=${encodeURIComponent(departureDate)}` : '/api/speedboat/schedules';
     fetch(url, { cache: 'no-store' })
       .then((r) => r.ok ? r.json() : null)
@@ -111,13 +140,15 @@ function BookingPageContent() {
           }
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoadingInbound(false));
   }, [searchParams]);
 
   React.useEffect(() => {
     const sid2 = searchParams.get('sid2') ?? '';
     const retDate = departureDate2;
     if (!sid2 || !retDate) return;
+    setLoadingOutbound(true);
     const url = retDate ? `/api/speedboat/schedules?date=${encodeURIComponent(retDate)}` : '/api/speedboat/schedules';
     fetch(url, { cache: 'no-store' })
       .then((r) => r.ok ? r.json() : null)
@@ -158,16 +189,51 @@ function BookingPageContent() {
           }
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoadingOutbound(false));
   }, [searchParams, departureDate2]);
 
+  React.useEffect(() => {
+    const adult = Number(searchParams.get('adult') ?? '');
+    const child = Number(searchParams.get('child') ?? '');
+    const infant = Number(searchParams.get('infant') ?? '');
+    const hasQs = [adult, child, infant].some((n) => Number.isFinite(n) && n >= 0);
+    if (hasQs) {
+      const a = Number.isFinite(adult) && adult >= 0 ? adult : 1;
+      const c = Number.isFinite(child) && child >= 0 ? child : 0;
+      const i = Number.isFinite(infant) && infant >= 0 ? infant : 0;
+      setInitialCounts({ adult: a, child: c, infant: i });
+      setGuestCount(Math.max(1, a + c + i));
+      return;
+    }
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('rt_passenger_counts') || '' : '';
+      if (raw) {
+        const obj = JSON.parse(raw);
+        const a = Math.max(0, Number(obj?.adult ?? 1));
+        const c = Math.max(0, Number(obj?.child ?? 0));
+        const i = Math.max(0, Number(obj?.infant ?? 0));
+        setInitialCounts({ adult: a, child: c, infant: i });
+        setGuestCount(Math.max(1, a + c + i));
+      } else {
+        setInitialCounts({ adult: 1, child: 0, infant: 0 });
+        setGuestCount(1);
+      }
+    } catch {
+      setInitialCounts({ adult: 1, child: 0, infant: 0 });
+      setGuestCount(1);
+    }
+  }, [searchParams]);
+
+ 
+
   const canContinue = useMemo(() => {
-    const nameOk = Boolean(contact.firstName?.trim()) && Boolean(contact.lastName?.trim());
+    const nameOk = Boolean(contact.firstName?.trim());
     const emailOk = Boolean(contact.email?.trim()) && contact.email.includes('@') && contact.email.endsWith('.com');
     const phoneOk = Boolean(contact.phone?.trim());
     const agreedOk = contact.agreed === true;
     const passengersOk = passengers.length === Math.max(1, guestCount) && passengers.every((p) => {
-      return Boolean(p.title) && Boolean(p.firstName?.trim()) && Boolean(p.lastName?.trim()) && Boolean(p.nationality) && Boolean(p.identityType) && Boolean(p.idNumber?.trim()) && Boolean(p.ageCategory);
+      return Boolean(p.title) && Boolean(p.firstName?.trim()) && Boolean(p.nationality) && Boolean(p.identityType) && Boolean(p.idNumber?.trim()) && Boolean(p.ageCategory);
     });
     const unitsOk = typeof availableUnits === 'number' ? (availableUnits > 0 && Math.max(1, guestCount) <= availableUnits) : true;
     return nameOk && emailOk && phoneOk && agreedOk && passengersOk && unitsOk;
@@ -188,11 +254,16 @@ function BookingPageContent() {
 
       <Box component="main" style={{ flex: 1 }}>
         <Container size="xl" pb="xl">
+          {(loadingInbound || loadingOutbound) && (
+            <Box style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+              <Loader color="#284361" />
+            </Box>
+          )}
           <Grid gutter="xl">
             <Grid.Col span={{ base: 12, lg: 8 }}>
               <Stack gap="xl">
                 <ContactForm guestCount={guestCount} onGuestCountChange={setGuestCount} onChange={setContact} availableUnits={availableUnits} />
-                <PassengerForm guestCount={guestCount} onChange={setPassengers} mainContactName={`${contact.firstName || ''} ${contact.lastName || ''}`.trim()} />
+                <PassengerForm guestCount={guestCount} onChange={setPassengers} mainContactName={`${contact.firstName || ''} ${contact.lastName || ''}`.trim()} initialCounts={initialCounts} />
               </Stack>
             </Grid.Col>
           <Grid.Col span={{ base: 12, lg: 4 }}>
@@ -240,100 +311,129 @@ function BookingPageContent() {
                 }
               ]}
               continueDisabled={!canContinue}
+              continueLoading={continueLoading}
               onContinue={async () => {
+                setContinueLoading(true);
                 const scheduleIdInbound = searchParams.get('sid') ?? '';
                 const scheduleIdOutbound = searchParams.get('sid2') ?? '';
                 const { data: { session } } = await supabase.auth.getSession();
                 const ownerId = session?.user?.id || null;
                 const ownerEmail = session?.user?.email || null;
                 if (!ownerId) {
-                  window.location.href = '/login?redirectTo=/speedboat/book/payment';
+                  const factorFor = (age: string) => {
+                    const a = String(age || '').toLowerCase();
+                    return (a === 'child' || a === 'infant') ? 0.75 : 1;
+                  };
+                  const segTotal = (price: number) => passengers.reduce((sum, p) => sum + Math.round(price * factorFor(p?.ageCategory)), 0);
+                  const payloadOutbound = scheduleIdOutbound ? {
+                    scheduleId: scheduleIdOutbound,
+                    origin: origin2 || destination,
+                    destination: destination2 || origin,
+                    departureTime: departureTime2 || departureTime,
+                    departureDate: departureDate2 || departureDate,
+                    guestCount,
+                    priceIdr: priceIdr2 || priceIdr,
+                    portFee: 10000,
+                    totalAmount: segTotal(priceIdr2 || priceIdr) + 10000,
+                    contact,
+                    passengers,
+                    currency: 'IDR',
+                    inventoryId: inventoryIdOutbound,
+                  } : null;
+                  const inboundPortFee = scheduleIdOutbound ? 0 : 10000;
+                  const payloadInbound = scheduleIdInbound ? {
+                    scheduleId: scheduleIdInbound,
+                    origin,
+                    destination,
+                    departureTime,
+                    departureDate,
+                    guestCount,
+                    priceIdr,
+                    portFee: inboundPortFee,
+                    totalAmount: segTotal(priceIdr) + inboundPortFee,
+                    contact,
+                    passengers,
+                    currency: 'IDR',
+                    inventoryId,
+                  } : null;
+                  const redirectTo = (() => {
+                    try {
+                      const url = new URL(typeof window !== 'undefined' ? window.location.href : '');
+                      const relative = `${url.pathname}?${url.searchParams.toString()}`;
+                      return relative || '/speedboat/book';
+                    } catch {
+                      return '/speedboat/book';
+                    }
+                  })();
+                  window.location.href = `/login?redirectTo=${encodeURIComponent(redirectTo)}`;
                   return;
                 }
                 const baseNotes = String(contact.specialRequests || '');
-                const contactOutbound = {
-                  ...contact,
-                  specialRequests: baseNotes,
-                  fullName: `${String(contact.firstName || '').trim()} ${String(contact.lastName || '').trim()}`.trim(),
-                };
-                const contactInbound = {
-                  ...contact,
-                  specialRequests: baseNotes,
-                  fullName: `${String(contact.firstName || '').trim()} ${String(contact.lastName || '').trim()}`.trim(),
-                };
+                const contactFullName = `${String(contact.firstName || '').trim()} ${String(contact.lastName || '').trim()}`.trim();
                 const factorFor = (age: string) => {
                   const a = String(age || '').toLowerCase();
                   return (a === 'child' || a === 'infant') ? 0.75 : 1;
                 };
                 const segTotal = (price: number) => passengers.reduce((sum, p) => sum + Math.round(price * factorFor(p?.ageCategory)), 0);
-                const payloadOutbound = scheduleIdOutbound ? {
-                  scheduleId: scheduleIdOutbound,
-                  origin: origin2 || destination,
-                  destination: destination2 || origin,
-                  departureTime: departureTime2 || departureTime,
-                  departureDate: departureDate2 || departureDate,
+                const legs: Array<{ scheduleId: string; departureDate: string; priceIdr: number; inventoryId?: string; notes?: string; rtType?: string }> = [];
+                if (scheduleIdOutbound) {
+                  legs.push({
+                    scheduleId: scheduleIdOutbound,
+                    departureDate: departureDate2 || departureDate,
+                    priceIdr: priceIdr2 || priceIdr,
+                    inventoryId: inventoryIdOutbound,
+                    notes: JSON.stringify({ rtType: 'OUTBOUND', userNotes: baseNotes || '' }),
+                    rtType: 'OUTBOUND',
+                  });
+                }
+                if (scheduleIdInbound) {
+                  legs.push({
+                    scheduleId: scheduleIdInbound,
+                    departureDate,
+                    priceIdr,
+                    inventoryId,
+                    notes: JSON.stringify({ rtType: 'INBOUND', userNotes: baseNotes || '' }),
+                    rtType: 'INBOUND',
+                  });
+                }
+                const totalPortFee = 10000;
+                const totalAmountCombined = legs.reduce((sum, lg) => sum + segTotal(lg.priceIdr), 0) + totalPortFee;
+                const phoneE164 = normalizePhoneE164(contact.countryCode, contact.phone);
+                const payloadCombined = {
+                  legs,
                   guestCount,
-                  priceIdr: priceIdr2 || priceIdr,
-                  portFee: 10000,
-                  totalAmount: segTotal(priceIdr2 || priceIdr) + 10000,
-                  contact: contactOutbound,
+                  portFee: totalPortFee,
+                  totalAmount: totalAmountCombined,
+                  contact: { ...contact, phone: (phoneE164 || `${String(contact.countryCode || '')} ${String(contact.phone || '')}`.trim()), fullName: contactFullName },
                   passengers,
                   currency: 'IDR',
                   ownerId,
                   ownerEmail,
-                  inventoryId: inventoryIdOutbound,
-                } : null;
-                const inboundPortFee = scheduleIdOutbound ? 0 : 10000;
-                const payloadInbound = scheduleIdInbound ? {
-                  scheduleId: scheduleIdInbound,
-                  origin,
-                  destination,
-                  departureTime,
-                  departureDate,
-                  guestCount,
-                  priceIdr,
-                  portFee: inboundPortFee,
-                  totalAmount: segTotal(priceIdr) + inboundPortFee,
-                  contact: contactInbound,
-                  passengers,
-                  currency: 'IDR',
-                  ownerId,
-                  ownerEmail,
-                  inventoryId,
-                } : null;
-                const createdIds: string[] = [];
-                if (payloadOutbound) {
-                  const resOut = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payloadOutbound) });
-                  if (resOut.ok) {
-                    const jsonOut = await resOut.json();
-                    const idOut = jsonOut?.booking?.id ?? jsonOut?.id ?? '';
-                    if (idOut) createdIds.push(String(idOut));
-                  } else if (resOut.status === 401) {
-                    window.location.href = '/login?redirectTo=/speedboat/book/payment';
-                    return;
-                  }
+                };
+                const res = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payloadCombined) });
+                if (res.status === 401) {
+                  setContinueLoading(false);
+                  window.location.href = '/login?redirectTo=/speedboat/book/payment';
+                  return;
                 }
-                if (payloadInbound) {
-                  const resIn = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payloadInbound) });
-                  if (resIn.ok) {
-                    const jsonIn = await resIn.json();
-                    const idIn = jsonIn?.booking?.id ?? jsonIn?.id ?? '';
-                    if (idIn) createdIds.push(String(idIn));
-                  } else if (resIn.status === 401) {
-                    window.location.href = '/login?redirectTo=/speedboat/book/payment';
-                    return;
-                  }
-                }
-                if (createdIds.length > 0) {
-                  try { localStorage.setItem('booking_ids', JSON.stringify(createdIds)); } catch {}
-                  const { data: { session } } = await supabase.auth.getSession();
-                  const qs = new URLSearchParams();
-                  qs.set('ids', createdIds.join(','));
-                  if (session) {
-                    window.location.href = `/speedboat/book/payment?${qs.toString()}`;
+                if (res.ok) {
+                  const json = await res.json();
+                  const id = json?.booking?.id ?? json?.id ?? '';
+                  if (id) {
+                    try { localStorage.setItem('booking_id', String(id)); } catch {}
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const qs = new URLSearchParams();
+                    qs.set('id', String(id));
+                    if (session) {
+                      window.location.href = `/speedboat/book/payment?${qs.toString()}`;
+                    } else {
+                      window.location.href = `/login?redirectTo=/speedboat/book/payment?${qs.toString()}`;
+                    }
                   } else {
-                    window.location.href = `/login?redirectTo=/speedboat/book/payment?${qs.toString()}`;
+                    setContinueLoading(false);
                   }
+                } else {
+                  setContinueLoading(false);
                 }
               }}
               buttonText="Continue to Payment"

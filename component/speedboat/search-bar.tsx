@@ -14,7 +14,7 @@ export function SearchBar({
   initialTo = null,
   initialDeparture = '',
   initialReturn = '',
-  initialPassengers = 2,
+  initialPassengers = 1,
   inboundMode = false,
   onSearch,
   onReturnToggle,
@@ -54,7 +54,7 @@ export function SearchBar({
   const [departure, setDeparture] = useState<string>(initialDeparture || todayStr);
   const [ret, setRet] = useState<string>(initialReturn);
   const [passengers, setPassengers] = useState<PassengerCounts>({
-    adult: Math.max(1, Number(initialPassengers || 2)),
+    adult: Math.max(1, Number(initialPassengers || 1)),
     child: 0,
     infant: 0
   });
@@ -112,11 +112,31 @@ export function SearchBar({
   }, [inboundMode, initialReturn, todayStr]);
 
   useEffect(() => {
-    setPassengers({ adult: Math.max(1, Number(initialPassengers || 2)), child: 0, infant: 0 });
+    try {
+      const raw = typeof window !== 'undefined' ? (localStorage.getItem('rt_passenger_counts') || '') : '';
+      if (raw) {
+        const obj = JSON.parse(raw);
+        const a = Math.max(0, Number(obj?.adult ?? 0));
+        const c = Math.max(0, Number(obj?.child ?? 0));
+        const i = Math.max(0, Number(obj?.infant ?? 0));
+        if (a || c || i) {
+          setPassengers({
+            adult: a || Math.max(1, Number(initialPassengers || 1)),
+            child: c,
+            infant: i
+          });
+          return;
+        }
+      }
+    } catch {}
+    setPassengers({ adult: Math.max(1, Number(initialPassengers || 1)), child: 0, infant: 0 });
   }, [initialPassengers]);
 
   const handlePassengerDone = (newPassengers: PassengerCounts) => {
     setPassengers(newPassengers);
+    try {
+      localStorage.setItem('rt_passenger_counts', JSON.stringify(newPassengers));
+    } catch {}
     setShowPassengerSelector(false);
     const total = newPassengers.adult + newPassengers.child + newPassengers.infant;
     const dep = departure;

@@ -11,6 +11,7 @@ import { FilterSidebar } from '@/components/speedboat/filter-sidebar';
 import { ResultsSection } from '@/components/speedboat/results-section';
 import type { ResultCardProps } from '@/components/speedboat/result-card';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { supabase } from '@/lib/supabase/client';
 
 function toMinutes(t: string | null) {
   if (!t) return null;
@@ -92,6 +93,8 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
   const [hasShownOutboundPopup, setHasShownOutboundPopup] = useState(false);
   const [hasShownReturnPopup, setHasShownReturnPopup] = useState(false);
   const [infoOpened, { open: openInfo, close: closeInfo }] = useDisclosure(false);
+  const [resultsLoading, setResultsLoading] = useState(false);
+  const [bookingLoading, setBookingLoading] = useState(false);
 
   useEffect(() => {
     if (infoOpened) {
@@ -104,6 +107,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
 
   useEffect(() => {
     const load = async () => {
+      setResultsLoading(true);
       const from = searchParams.get('from') ?? (props.initialFrom ?? '') ?? '';
       const to = searchParams.get('to') ?? (props.initialTo ?? '') ?? '';
       const departure = searchParams.get('departure') ?? (props.initialDeparture ?? '');
@@ -128,7 +132,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
       if (to) urlParams.set('to', to);
       if (date) urlParams.set('date', date);
       const res = await fetch(`/api/speedboat/schedules?${urlParams.toString()}`, { cache: 'no-store' });
-      if (!res.ok) return;
+      if (!res.ok) { setResultsLoading(false); return; }
       const json = await res.json();
       const items = Array.isArray(json.schedules) ? json.schedules : [];
       setSchedules(items);
@@ -150,6 +154,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
           if (Array.isArray(pj.providers)) setProviders(pj.providers);
         }
       } catch {}
+      setResultsLoading(false);
     };
     load();
   }, [searchParams]);
@@ -175,10 +180,12 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
       const inRaw = typeof window !== 'undefined' ? (localStorage.getItem('rt_inbound_selected') || '') : '';
       setOutboundSel(outRaw ? JSON.parse(outRaw) : null);
       setInboundSel(inRaw ? JSON.parse(inRaw) : null);
-      if (outRaw && !hasShownOutboundPopup) {
+      const pending = typeof window !== 'undefined' ? (sessionStorage.getItem('rt_popup_outbound_pending') || '') : '';
+      if (outRaw && pending === '1') {
         setInfoMessage('Ticket added to cart');
         openInfo();
         setHasShownOutboundPopup(true);
+        try { sessionStorage.setItem('rt_popup_outbound_pending', '0'); } catch {}
       }
     } catch {}
   }, [searchParams, hasOpenedCartOnce]);
@@ -209,6 +216,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
     const ret = searchParams.get('return') || '';
     const pax = (() => { try { const s = localStorage.getItem('rt_passengers') || ''; return s ? String(s) : (searchParams.get('passengers') || '2'); } catch { return searchParams.get('passengers') || '2'; } })();
     try { localStorage.removeItem('rt_inbound_selected'); } catch {}
+    try { if (typeof window !== 'undefined') { sessionStorage.setItem('rt_popup_outbound_pending', '0'); } } catch {}
     setInboundSel(null);
     if (outboundSel) {
       const params = new URLSearchParams();
@@ -226,6 +234,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
     const pax = (() => { try { const s = localStorage.getItem('rt_passengers') || ''; return s ? String(s) : (searchParams.get('passengers') || '2'); } catch { return searchParams.get('passengers') || '2'; } })();
     try { localStorage.removeItem('rt_inbound_selected'); } catch {}
     try { localStorage.removeItem('rt_outbound_selected'); } catch {}
+    try { if (typeof window !== 'undefined') { sessionStorage.setItem('rt_popup_outbound_pending', '0'); } } catch {}
     setInboundSel(null);
     setOutboundSel(null);
     if (outboundSel) {
@@ -239,8 +248,9 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
     }
   };
 
-  const bookNowCombined = () => {
+  const bookNowCombined = async () => {
     if (!outboundSel || !inboundSel) return;
+    setBookingLoading(true);
     const q = new URLSearchParams();
     q.set('sid', String(inboundSel.sid || ''));
     q.set('sid2', String(outboundSel.sid || ''));
@@ -256,7 +266,40 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
     q.set('departureDate2', String(outboundSel.departureDate || ''));
     q.set('provider2', String(outboundSel.provider || ''));
     q.set('priceIdr2', String(outboundSel.priceIdr || ''));
-    window.location.href = `/speedboat/book?${q.toString()}`;
+    try {
+      let a = 0, c = 0, i = 0;
+      try {
+        const raw = typeof window !== 'undefined' ? (localStorage.getItem('rt_passenger_counts') || '') : '';
+        if (raw) {
+          const obj = JSON.parse(raw);
+          a = Math.max(0, Number(obj?.adult ?? 0));
+          c = Math.max(0, Number(obj?.child ?? 0));
+          i = Math.max(0, Number(obj?.infant ?? 0));
+        }
+      } catch {}
+      const totalStr = searchParams.get('passengers') ?? '';
+      const total = Number(totalStr);
+      if (!(a || c || i)) {
+        const t = Number.isFinite(total) && total > 0 ? total : 0;
+        a = t || 1;
+        c = 0;
+        i = 0;
+      }
+      q.set('adult', String(a));
+      q.set('child', String(c));
+      q.set('infant', String(i));
+    } catch {}
+    const target = `/speedboat/book?${q.toString()}`;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        window.location.href = `/login?redirectTo=${encodeURIComponent(target)}`;
+      } else {
+        window.location.href = target;
+      }
+    } catch {
+      setBookingLoading(false);
+    }
   };
 
   const originOptions = useMemo(() => {
@@ -318,6 +361,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
   };
 
   const applyFilters = () => {
+    setResultsLoading(true);
     let list = [...schedules];
     if (currentFrom) list = list.filter((s: any) => s?.departureRoute?.id === currentFrom);
     if (currentTo) list = list.filter((s: any) => s?.arrivalRoute?.id === currentTo);
@@ -328,6 +372,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
     if (sortBy === 'latest-departure') list.sort((a: any, b: any) => (toMinutes(b.departure_time) ?? 0) - (toMinutes(a.departure_time) ?? 0));
     const passengers = Number(searchParams.get('passengers') ?? '2') || 2;
     setResults(list.map((s: any) => mapScheduleToResult(s, passengers)));
+    setTimeout(() => setResultsLoading(false), 150);
   };
 
   return (
@@ -344,9 +389,11 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
           initialPassengers={initialPassengers}
           inboundMode={inboundMode}
           onFromChange={({ from, to, departure, return: ret, passengers }) => {
+            setResultsLoading(true);
             try { localStorage.removeItem('rt_outbound_selected'); } catch {}
             try { localStorage.removeItem('rt_inbound_selected'); } catch {}
             try { localStorage.removeItem('rt_passengers'); } catch {}
+            try { if (typeof window !== 'undefined') { sessionStorage.setItem('rt_popup_outbound_pending', '0'); } } catch {}
             setOutboundSel(null);
             setInboundSel(null);
             setInboundMode(false);
@@ -362,9 +409,11 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             router.replace(`/speedboat?${params.toString()}`);
           }}
           onToChange={({ from, to, departure, return: ret, passengers }) => {
+            setResultsLoading(true);
             try { localStorage.removeItem('rt_outbound_selected'); } catch {}
             try { localStorage.removeItem('rt_inbound_selected'); } catch {}
             try { localStorage.removeItem('rt_passengers'); } catch {}
+            try { if (typeof window !== 'undefined') { sessionStorage.setItem('rt_popup_outbound_pending', '0'); } } catch {}
             setOutboundSel(null);
             setInboundSel(null);
             setInboundMode(false);
@@ -380,9 +429,11 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             router.replace(`/speedboat?${params.toString()}`);
           }}
           onDepartureChange={({ from, to, departure, return: ret, passengers }) => {
+            setResultsLoading(true);
             try { localStorage.removeItem('rt_outbound_selected'); } catch {}
             try { localStorage.removeItem('rt_inbound_selected'); } catch {}
             try { localStorage.removeItem('rt_passengers'); } catch {}
+            try { if (typeof window !== 'undefined') { sessionStorage.setItem('rt_popup_outbound_pending', '0'); } } catch {}
             setOutboundSel(null);
             setInboundSel(null);
             setInboundMode(false);
@@ -398,6 +449,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             router.replace(`/speedboat?${params.toString()}`);
           }}
           onReturnDateChange={({ from, to, departure, return: ret, passengers }) => {
+            setResultsLoading(true);
             setCurrentFrom(from || null);
             setCurrentTo(to || null);
             const params = new URLSearchParams();
@@ -409,6 +461,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             router.replace(`/speedboat?${params.toString()}`);
           }}
           onPassengersChange={({ from, to, departure, return: ret, passengers }) => {
+            setResultsLoading(true);
             try { localStorage.setItem('rt_passengers', String(passengers ?? '')); } catch {}
             const params = new URLSearchParams();
             if (from) params.set('from', from);
@@ -419,9 +472,11 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             router.replace(`/speedboat?${params.toString()}`);
           }}
           onSearch={({ from, to, departure, return: ret, passengers }) => {
+            setResultsLoading(true);
             try { localStorage.removeItem('rt_outbound_selected'); } catch {}
             try { localStorage.removeItem('rt_inbound_selected'); } catch {}
             try { localStorage.removeItem('rt_passengers'); } catch {}
+            try { if (typeof window !== 'undefined') { sessionStorage.setItem('rt_popup_outbound_pending', '0'); } } catch {}
             setOutboundSel(null);
             setInboundSel(null);
             setInboundMode(false);
@@ -440,7 +495,8 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             fetch(url, { cache: 'no-store' })
               .then((r) => r.ok ? r.json() : null)
               .then((d) => { if (d && Array.isArray(d.providers)) setProviders(d.providers); })
-              .catch(() => {});
+              .catch(() => {})
+              .finally(() => setResultsLoading(false));
 
             const params = new URLSearchParams();
             if (from) params.set('from', from);
@@ -455,6 +511,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             setCurrentTo(to || null);
             if (checked) {
               try { localStorage.removeItem('rt_inbound_selected'); } catch {}
+              try { if (typeof window !== 'undefined') { sessionStorage.setItem('rt_popup_outbound_pending', '0'); } } catch {}
               setInboundSel(null);
               const params = new URLSearchParams();
               if (from) params.set('from', from);
@@ -467,6 +524,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
               try { localStorage.removeItem('rt_outbound_selected'); } catch {}
               try { localStorage.removeItem('rt_inbound_selected'); } catch {}
               try { localStorage.removeItem('rt_passengers'); } catch {}
+              try { if (typeof window !== 'undefined') { sessionStorage.setItem('rt_popup_outbound_pending', '0'); } } catch {}
               setOutboundSel(null);
               setInboundSel(null);
               setInboundMode(false);
@@ -594,7 +652,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             </Stack>
           </Paper>
           <Group justify="flex-end">
-            <Button disabled={!inboundSel} onClick={bookNowCombined} style={{ backgroundColor: '#284361' }}>Book Now</Button>
+            <Button disabled={!inboundSel} onClick={bookNowCombined} style={{ backgroundColor: '#284361' }} loading={bookingLoading}>Book Now</Button>
           </Group>
         </Stack>
       </Drawer>
@@ -645,7 +703,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
                 Choose from our selection of reliable speedboat operators
               </Text>
             </Stack>
-            <ResultsSection results={results} />
+            <ResultsSection results={results} loading={resultsLoading} />
           </Box>
         </Group>
       </Container>

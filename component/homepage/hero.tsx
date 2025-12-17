@@ -1,17 +1,26 @@
 "use client";
 import React, { useEffect, useState } from 'react';
-import { Box, Container, Title, Text, Button, Stack } from '@mantine/core';
+import { Box, Container, Title, Text, Button, Stack, Loader } from '@mantine/core';
 import Link from 'next/link';
 import homeImg from '../../public/asset/pic/home.png';
 
 export function Hero() {
   const [isMobile, setIsMobile] = useState(false);
+  const [bgLoading, setBgLoading] = useState(true);
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
     const update = () => setIsMobile(mq.matches);
     update();
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
+  }, []);
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => setBgLoading(false);
+    img.onerror = () => setBgLoading(false);
+    img.src = homeImg.src;
+    const t = setTimeout(() => setBgLoading(false), 1200);
+    return () => clearTimeout(t);
   }, []);
 
   const heroHeight = isMobile ? 360 : 500;
@@ -36,6 +45,11 @@ export function Hero() {
         justifyContent: justify
       }}
     >
+      {bgLoading && (
+        <Box style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
+          <Loader color="#284361" />
+        </Box>
+      )}
       <Container size="xl" style={{ position: 'relative', zIndex: 1, textAlign: isMobile ? 'center' : 'left' }}>
         <Box style={{ maxWidth: isMobile ? '100%' : '600px' }}>
           <Stack gap="lg" align={align}>

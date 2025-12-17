@@ -81,7 +81,7 @@ export function Footer() {
               Your trusted partner for island adventures in Bali and beyond. We
               provide safe, reliable, and unforgettable experiences.
             </Text>
-            <Group gap="sm">
+            {/* <Group gap="sm">
               <ActionIcon 
                 variant="subtle" 
                 color="white" 
@@ -129,8 +129,8 @@ export function Footer() {
                 }}
               >
                 <IconBrandYoutube size={16} />
-              </ActionIcon>
-            </Group>
+              </ActionIcon> */}
+            {/* </Group> */}
           </Stack>
 
           {/* Our Products */}

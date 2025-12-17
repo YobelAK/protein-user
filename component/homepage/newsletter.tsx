@@ -12,7 +12,8 @@ import {
   Button, 
   Group, 
   Stack,
-  TextInput
+  TextInput,
+  Loader
 } from '@mantine/core';
 import { IconMail } from '@tabler/icons-react';
 
@@ -92,6 +93,7 @@ export function Newsletter() {
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Enter your email address"
                       required
+                      disabled={loading}
                       style={{ flex: 1 }}
                       styles={{
                         input: {
@@ -122,6 +124,7 @@ export function Newsletter() {
                     >
                       Register Now
                     </Button>
+                    {loading && <Loader color="#284361" />}
                   </Group>
                 </form>
                 {message && (

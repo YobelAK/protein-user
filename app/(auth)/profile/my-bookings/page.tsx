@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Box, Group, Text, Stack, Container, Modal, Badge, Divider, Alert, SimpleGrid, Button, Textarea, Rating, TextInput } from '@mantine/core';
+import { Box, Group, Text, Stack, Container, Modal, Badge, Divider, Alert, SimpleGrid, Button, Textarea, Rating, TextInput, Table, Loader } from '@mantine/core';
 import { IconAlertCircle, IconClock, IconCheck, IconCreditCard } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 // import { Sidebar } from '@/components/profile/Sidebar';
@@ -20,13 +20,22 @@ type CardItem = {
   initials: string;
   title: string;
   location: string;
+  returnLocation?: string | null;
+  returnVendorName?: string | null;
+  returnBoatName?: string | null;
   date: string;
   bookingDate?: string | null;
   departureDate?: string | null;
+  returnDate?: string | null;
   departureTime?: string | null;
   arrivalTime?: string | null;
+  returnDepartureTime?: string | null;
+  returnArrivalTime?: string | null;
   arrivalAt?: string | null;
   passengers: number;
+  isDoubleTrip?: boolean;
+  departurePassengers?: number | null;
+  returnPassengers?: number | null;
   bookingCode: string;
   status: 'Pending' | 'Booked' | 'Completed' | 'Cancelled'| 'Expired'| 'Refunded';
   image?: string | null;
@@ -52,20 +61,30 @@ export default function MyBookingsPage() {
   const [refundBooking, setRefundBooking] = useState<CardItem | null>(null);
   const [refundReason, setRefundReason] = useState('');
   const [refundSubmitting, setRefundSubmitting] = useState(false);
+  const [refundItemsLoading, setRefundItemsLoading] = useState(false);
+  const [refundBookingDetail, setRefundBookingDetail] = useState<any | null>(null);
+  const [refundItemSubmitting, setRefundItemSubmitting] = useState<string | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewBooking, setReviewBooking] = useState<CardItem | null>(null);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewInput, setReviewInput] = useState<{ rating: number; title?: string; comment?: string; serviceRating?: number; valueRating?: number; locationRating?: number }>({ rating: 0 });
   const [viewReviewOpen, setViewReviewOpen] = useState(false);
   const [viewReview, setViewReview] = useState<any | null>(null);
+  const [pageLoading, setPageLoading] = useState<boolean>(true);
+  const [invoiceLoading, setInvoiceLoading] = useState<boolean>(false);
+  const [viewReviewLoading, setViewReviewLoading] = useState<boolean>(false);
+  const [ticketLoadingMap, setTicketLoadingMap] = useState<Record<string, boolean>>({});
+  const [payLoadingMap, setPayLoadingMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const load = async () => {
+      setPageLoading(true);
       const { data: { session } } = await supabase.auth.getSession();
       const uid = session?.user?.id || '';
       const email = (session?.user?.email || '').trim().toLowerCase();
       if (!uid) {
         router.replace('/login?redirectTo=/profile/my-bookings');
+        setPageLoading(false);
         return;
       }
       const qs = new URLSearchParams();
@@ -77,6 +96,7 @@ export default function MyBookingsPage() {
         const arr = Array.isArray(json.bookings) ? json.bookings : [];
         if (arr.length > 0) {
           setCards(arr);
+          setPageLoading(false);
           return;
         }
       }
@@ -107,23 +127,38 @@ export default function MyBookingsPage() {
                   } catch {}
                 }
                 if (!rtType) {
-                  const sr = (firstItem as any)?.specialRequirements || null;
-                  if (sr) {
+                  const types = new Set<string>();
+                  for (const it of (Array.isArray(b?.items) ? b.items : [])) {
                     try {
+                      const sr = (it as any)?.specialRequirements || null;
+                      if (!sr) continue;
                       const obj = JSON.parse(String(sr));
                       const notesField = obj?.notes || '';
-                      if (notesField) {
+                      if (typeof notesField === 'string' && notesField) {
                         try {
                           const inner = JSON.parse(String(notesField));
                           const t2 = String(inner?.rtType || '').toUpperCase();
-                          rtType = t2 || rtType;
+                          if (t2) types.add(t2);
                         } catch {}
                       }
                     } catch {}
                   }
+                  if (types.size === 1) {
+                    const only = Array.from(types)[0];
+                    rtType = only || null;
+                  }
+                  if (!rtType) {
+                    const prodIds = new Set<string>();
+                    for (const it of (Array.isArray(b?.items) ? b.items : [])) {
+                      const pid = String((it as any)?.productId || '');
+                      if (pid) prodIds.add(pid);
+                    }
+                    if (prodIds.size <= 1) {
+                      rtType = 'OUTBOUND';
+                    }
+                  }
                 }
-                const suffix = rtType === 'OUTBOUND' ? 'Pergi' : rtType === 'INBOUND' ? 'Pulang' : '';
-                if (suffix) title = `${title} \u2022 ${suffix}`;
+                const suffix = '';
               } catch {}
               const featured = firstItem?.product?.featuredImage || null;
               const location = sched && sched.departureRoute && sched.arrivalRoute ? `${sched.departureRoute.name} → ${sched.arrivalRoute.name}` : '';
@@ -148,6 +183,63 @@ export default function MyBookingsPage() {
               const departureDate = depRaw ? new Date(depRaw).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
               const departureTime = (sched as any)?.departureTime ?? null;
               const arrivalTime = (sched as any)?.arrivalTime ?? null;
+              let returnLocation: string | null = null;
+              let returnDate: string | null = null;
+              let returnDepartureTime: string | null = null;
+              let returnArrivalTime: string | null = null;
+              let returnVendorName: string | null = null;
+              let returnBoatName: string | null = null;
+              let departurePassengers: number | null = null;
+              let returnPassengers: number | null = null;
+              let isDoubleTrip: boolean = false;
+              try {
+                const arrItems = Array.isArray(b?.items) ? b.items : [];
+                let outQty = 0;
+                let inQty = 0;
+                let hasOut = false;
+                let hasIn = false;
+                for (const it of arrItems) {
+                  try {
+                    const sr = (it as any)?.specialRequirements || '';
+                    const obj = sr ? JSON.parse(String(sr)) : {};
+                    const notesField = obj?.notes || '';
+                    if (typeof notesField === 'string' && notesField) {
+                      const inner = JSON.parse(String(notesField));
+                      const t = String(inner?.rtType || '').toUpperCase();
+                      if (t === 'INBOUND') {
+                        const rs = (it as any)?.product?.fastboatSchedule || null;
+                        const depRoute = (rs as any)?.departureRoute?.name || '';
+                        const arrRoute = (rs as any)?.arrivalRoute?.name || '';
+                        returnLocation = depRoute && arrRoute ? `${depRoute} → ${arrRoute}` : null;
+                        const itDate = (it as any)?.itemDate || ((it as any)?.inventory?.inventoryDate ?? null);
+                        returnDate = itDate ? new Date(itDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
+                        returnDepartureTime = (rs as any)?.departureTime ?? null;
+                        returnArrivalTime = (rs as any)?.arrivalTime ?? null;
+                        if (!returnBoatName) {
+                          const bn = (rs as any)?.boat?.name || '';
+                          returnBoatName = bn || null;
+                        }
+                        if (!returnVendorName) {
+                          const vn = (b as any)?.tenant?.vendorName || null;
+                          returnVendorName = vn;
+                        }
+                        inQty += Number((it as any)?.quantity || 0);
+                        hasIn = true;
+                      } else if (t === 'OUTBOUND') {
+                        outQty += Number((it as any)?.quantity || 0);
+                        hasOut = true;
+                      }
+                    }
+                  } catch {}
+                }
+                if (outQty === 0 && inQty === 0) {
+                  outQty = qty;
+                  inQty = 0;
+                }
+                departurePassengers = outQty || null;
+                returnPassengers = inQty || null;
+                isDoubleTrip = hasOut && hasIn;
+              } catch {}
               let arrivalAt: string | null = null;
               try {
                 if (invDate && arrivalTime) {
@@ -167,10 +259,16 @@ export default function MyBookingsPage() {
                 date: dateStr,
                 bookingDate: bd ? bd.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
                 departureDate,
+                returnDate,
                 departureTime,
                 arrivalTime,
+                returnDepartureTime,
+                returnArrivalTime,
                 arrivalAt,
                 passengers: qty,
+                isDoubleTrip,
+                departurePassengers,
+                returnPassengers,
                 bookingCode: b.bookingCode || b.booking_code || '',
                 status,
                 image: featured,
@@ -179,8 +277,12 @@ export default function MyBookingsPage() {
                 pendingType,
                 cancellationReason: (b as any)?.cancellationReason ?? (b as any)?.cancellation_reason ?? null,
                 hasReview: false,
+                returnLocation,
+                returnVendorName,
+                returnBoatName,
               };
               setCards([card]);
+              setPageLoading(false);
               return;
             }
           }
@@ -226,8 +328,7 @@ export default function MyBookingsPage() {
                     } catch {}
                   }
                 }
-                const suffix = rtType === 'OUTBOUND' ? 'Pergi' : rtType === 'INBOUND' ? 'Pulang' : '';
-                if (suffix) title = `${title} \u2022 ${suffix}`;
+                const suffix = '';
               } catch {}
               const featured = firstItem?.product?.featuredImage || null;
               const location = sched && sched.departureRoute && sched.arrivalRoute ? `${sched.departureRoute.name} → ${sched.arrivalRoute.name}` : '';
@@ -252,6 +353,63 @@ export default function MyBookingsPage() {
               const departureDate = depRaw ? new Date(depRaw).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
               const departureTime = (sched as any)?.departureTime ?? null;
               const arrivalTime = (sched as any)?.arrivalTime ?? null;
+              let returnVendorName: string | null = null;
+              let returnBoatName: string | null = null;
+              let returnLocation: string | null = null;
+              let returnDate: string | null = null;
+              let returnDepartureTime: string | null = null;
+              let returnArrivalTime: string | null = null;
+              let departurePassengers: number | null = null;
+              let returnPassengers: number | null = null;
+              let isDoubleTrip: boolean = false;
+              try {
+                const arrItems = Array.isArray(b?.items) ? b.items : [];
+                let outQty = 0;
+                let inQty = 0;
+                let hasOut = false;
+                let hasIn = false;
+                for (const it of arrItems) {
+                  try {
+                    const sr = (it as any)?.specialRequirements || '';
+                    const obj = sr ? JSON.parse(String(sr)) : {};
+                    const notesField = obj?.notes || '';
+                    if (typeof notesField === 'string' && notesField) {
+                      const inner = JSON.parse(String(notesField));
+                      const t = String(inner?.rtType || '').toUpperCase();
+                      if (t === 'INBOUND') {
+                        const rs = (it as any)?.product?.fastboatSchedule || null;
+                        const depRoute = (rs as any)?.departureRoute?.name || '';
+                        const arrRoute = (rs as any)?.arrivalRoute?.name || '';
+                        returnLocation = depRoute && arrRoute ? `${depRoute} → ${arrRoute}` : null;
+                        const itDate = (it as any)?.itemDate || ((it as any)?.inventory?.inventoryDate ?? null);
+                        returnDate = itDate ? new Date(itDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
+                        returnDepartureTime = (rs as any)?.departureTime ?? null;
+                        returnArrivalTime = (rs as any)?.arrivalTime ?? null;
+                        if (!returnBoatName) {
+                          const bn = (rs as any)?.boat?.name || '';
+                          returnBoatName = bn || null;
+                        }
+                        if (!returnVendorName) {
+                          const vn = (b as any)?.tenant?.vendorName || null;
+                          returnVendorName = vn;
+                        }
+                        inQty += Number((it as any)?.quantity || 0);
+                        hasIn = true;
+                      } else if (t === 'OUTBOUND') {
+                        outQty += Number((it as any)?.quantity || 0);
+                        hasOut = true;
+                      }
+                    }
+                  } catch {}
+                }
+                if (outQty === 0 && inQty === 0) {
+                  outQty = qty;
+                  inQty = 0;
+                }
+                departurePassengers = outQty || null;
+                returnPassengers = inQty || null;
+                isDoubleTrip = hasOut && hasIn;
+              } catch {}
               let arrivalAt: string | null = null;
               try {
                 if (invDate && arrivalTime) {
@@ -271,10 +429,16 @@ export default function MyBookingsPage() {
                 date: dateStr,
                 bookingDate: bd ? bd.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
                 departureDate,
+                returnDate,
                 departureTime,
                 arrivalTime,
+                returnDepartureTime,
+                returnArrivalTime,
                 arrivalAt,
                 passengers: qty,
+                isDoubleTrip,
+                departurePassengers,
+                returnPassengers,
                 bookingCode: b.bookingCode || b.booking_code || '',
                 status,
                 image: featured,
@@ -283,14 +447,19 @@ export default function MyBookingsPage() {
                 pendingType,
                 cancellationReason: (b as any)?.cancellationReason ?? (b as any)?.cancellation_reason ?? null,
                 hasReview: false,
+                returnLocation,
+                returnVendorName,
+                returnBoatName,
               };
               setCards([card]);
+              setPageLoading(false);
               return;
             }
           }
         }
         setCards([]);
       } catch {}
+      setPageLoading(false);
     };
     load();
   }, []);
@@ -384,42 +553,50 @@ export default function MyBookingsPage() {
           </Modal>
           <Modal opened={invoiceOpen} onClose={() => setInvoiceOpen(false)} title="Invoice">
             <Stack gap="md">
-              <Group gap="md">
-                <Badge color="gray" variant="light">{invoice?.paymentMethod || '-'}</Badge>
-                <Group gap="xs">
-                  <IconCheck size={20} color="#2dbe8d" />
-                  <Text size="sm" fw={500} c="#2dbe8d">
-                    Payment Successful
-                  </Text>
+              {invoiceLoading || !invoice ? (
+                <Group justify="center" py="md">
+                  <Loader color="#284361" />
                 </Group>
-              </Group>
-              <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xl">
-                <Box>
-                  <Text size="sm" c="dimmed" mb={4}>Invoice</Text>
-                  <Text fw={600} c="#284361">{invoice?.xenditInvoiceId || '-'}</Text>
-                </Box>
-                <Box>
-                  <Text size="sm" c="dimmed" mb={4}>Time</Text>
-                  <Text fw={600} c="#284361">{invoice?.paidAt ? new Date(invoice.paidAt).toLocaleString('id-ID', { hour12: false }) : '-'}</Text>
-                </Box>
-                <Box>
-                  <Text size="sm" c="dimmed" mb={4}>Method</Text>
-                  <Text fw={600} c="#284361">{invoice?.paymentMethod || '-'}</Text>
-                </Box>
-                <Box>
-                  <Text size="sm" c="dimmed" mb={4}>Amount</Text>
-                  <Text fw={600} c="#284361">{(() => {
-                    const amt = invoice?.paidAmount ?? invoice?.totalAmount;
-                    if (!amt) return '-';
-                    const n = Number(amt);
-                    return `IDR ${n.toLocaleString('id-ID')}`;
-                  })()}</Text>
-                </Box>
-                <Box>
-                  <Text size="sm" c="dimmed" mb={4}>Status</Text>
-                  <Text fw={600} c="#2dbe8d">{invoice?.status || '-'}</Text>
-                </Box>
-              </SimpleGrid>
+              ) : (
+                <>
+                  <Group gap="md">
+                    <Badge color="gray" variant="light">{invoice?.paymentMethod || '-'}</Badge>
+                    <Group gap="xs">
+                      <IconCheck size={20} color="#2dbe8d" />
+                      <Text size="sm" fw={500} c="#2dbe8d">
+                        Payment Successful
+                      </Text>
+                    </Group>
+                  </Group>
+                  <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xl">
+                    <Box>
+                      <Text size="sm" c="dimmed" mb={4}>Invoice</Text>
+                      <Text fw={600} c="#284361">{invoice?.xenditInvoiceId || '-'}</Text>
+                    </Box>
+                    <Box>
+                      <Text size="sm" c="dimmed" mb={4}>Time</Text>
+                      <Text fw={600} c="#284361">{invoice?.paidAt ? new Date(invoice.paidAt).toLocaleString('id-ID', { hour12: false }) : '-'}</Text>
+                    </Box>
+                    <Box>
+                      <Text size="sm" c="dimmed" mb={4}>Method</Text>
+                      <Text fw={600} c="#284361">{invoice?.paymentMethod || '-'}</Text>
+                    </Box>
+                    <Box>
+                      <Text size="sm" c="dimmed" mb={4}>Amount</Text>
+                      <Text fw={600} c="#284361">{(() => {
+                        const amt = invoice?.paidAmount ?? invoice?.totalAmount;
+                        if (!amt) return '-';
+                        const n = Number(amt);
+                        return `IDR ${n.toLocaleString('id-ID')}`;
+                      })()}</Text>
+                    </Box>
+                    <Box>
+                      <Text size="sm" c="dimmed" mb={4}>Status</Text>
+                      <Text fw={600} c="#2dbe8d">{invoice?.status || '-'}</Text>
+                    </Box>
+                  </SimpleGrid>
+                </>
+              )}
             </Stack>
           </Modal>
           <Modal opened={reviewOpen} onClose={() => { if (!reviewSubmitting) { setReviewOpen(false); setReviewBooking(null); setReviewInput({ rating: 0 }); } }} title="Review">
@@ -490,7 +667,11 @@ export default function MyBookingsPage() {
             </Stack>
           </Modal>
           <Modal opened={viewReviewOpen} onClose={() => setViewReviewOpen(false)} title="View Review">
-            {viewReview && (
+            {viewReviewLoading ? (
+              <Group justify="center" py="md">
+                <Loader color="#284361" />
+              </Group>
+            ) : viewReview ? (
               <Stack gap="md">
                 <Group justify="space-between" align="center">
                   <Text c="dimmed">Rating</Text>
@@ -522,7 +703,7 @@ export default function MyBookingsPage() {
                   <Badge color="gray" variant="light">{viewReview.sentimentLabel || '-'}</Badge>
                 </Group>
               </Stack>
-            )}
+            ) : null}
           </Modal>
           <Modal
             opened={detailOpen}
@@ -701,18 +882,91 @@ export default function MyBookingsPage() {
                   </Group>
                 </Box>
 
-          <Stack gap={16}>
-            {filtered.map((b, idx) => (
-              <BookingCard
+          {pageLoading ? (
+            <Group justify="center" my={32}>
+              <Loader color="#284361" />
+            </Group>
+          ) : (
+            <Stack gap={16}>
+              {filtered.map((b, idx) => (
+                <BookingCard
                 key={`${b.bookingCode}-${idx}`}
                 initials={b.initials}
                 title={b.title}
                 location={b.location}
                 bookingDate={b.bookingDate || b.date}
                 departureDate={b.departureDate || undefined}
+                returnDate={b.returnDate || undefined}
                 departureTime={b.departureTime || undefined}
                 arrivalTime={b.arrivalTime || undefined}
+                returnDepartureTime={b.returnDepartureTime || undefined}
+                returnArrivalTime={b.returnArrivalTime || undefined}
+                returnLocation={b.returnLocation || undefined}
+                returnVendorName={(b as any)?.returnVendorName || undefined}
+                returnBoatName={(b as any)?.returnBoatName || undefined}
                 passengers={b.passengers}
+                isDoubleTrip={typeof (b as any)?.isDoubleTrip === 'boolean' ? (b as any).isDoubleTrip : !!(b.returnDate || b.returnDepartureTime || b.returnArrivalTime || b.returnLocation)}
+                departurePassengers={(() => {
+                  try {
+                    const arr = Array.isArray((b as any)?.items) ? (b as any).items : [];
+                    if (!arr.length) {
+                      const qty =
+                        Number((b as any)?.departurePassengers ?? (b as any)?.outboundPassengers ?? (b as any)?.outbound_participants ?? (b as any)?.passengers ?? 0);
+                      return qty || undefined;
+                    }
+                    let out = 0;
+                    for (const it of arr) {
+                      const qty = Number((it as any)?.quantity || 0);
+                      const sr = (it as any)?.specialRequirements || '';
+                      const obj = sr ? JSON.parse(String(sr)) : {};
+                      const notesField = obj?.notes || '';
+                      if (typeof notesField === 'string' && notesField) {
+                        try {
+                          const inner = JSON.parse(String(notesField));
+                          const t = String(inner?.rtType || '').toUpperCase();
+                          if (t === 'OUTBOUND') out += qty;
+                        } catch {}
+                      }
+                    }
+                    return out || undefined;
+                  } catch { return undefined; }
+                })()}
+                returnPassengers={(() => {
+                  try {
+                    const arr = Array.isArray((b as any)?.items) ? (b as any).items : [];
+                    if (!arr.length) {
+                      const qty =
+                        Number((b as any)?.returnPassengers ?? (b as any)?.inboundPassengers ?? (b as any)?.inbound_participants ?? 0);
+                      return qty || undefined;
+                    }
+                    let inn = 0;
+                    for (const it of arr) {
+                      const qty = Number((it as any)?.quantity || 0);
+                      const sr = (it as any)?.specialRequirements || '';
+                      const obj = sr ? JSON.parse(String(sr)) : {};
+                      const notesField = obj?.notes || '';
+                      if (typeof notesField === 'string' && notesField) {
+                        try {
+                          const inner = JSON.parse(String(notesField));
+                          const t = String(inner?.rtType || '').toUpperCase();
+                          if (t === 'INBOUND') inn += qty;
+                        } catch {}
+                      }
+                    }
+                    return inn || undefined;
+                  } catch { return undefined; }
+                })()}
+                passengers={(() => {
+                  try {
+                    const arr = Array.isArray((b as any)?.items) ? (b as any).items : [];
+                    if (arr.length) {
+                      const total = arr.reduce((acc: number, it: any) => acc + Number((it as any)?.quantity || 0), 0);
+                      return total || (b.passengers ?? undefined);
+                    }
+                    const p = (b as any)?.passengers ?? (b as any)?.totalParticipants ?? (b as any)?.total_participants;
+                    return p ?? undefined;
+                  } catch { return (b as any)?.passengers ?? undefined; }
+                })()}
                 bookingCode={b.bookingCode}
                 status={b.status}
                 image={b.image || undefined}
@@ -720,16 +974,21 @@ export default function MyBookingsPage() {
                 deadlineAt={b.deadlineAt || undefined}
                 pendingType={b.pendingType}
                 onPayNow={b.status === 'Pending' ? () => {
+                  setPayLoadingMap((prev) => ({ ...prev, [b.id]: true }));
                   try { localStorage.setItem('booking_id', b.id); } catch {}
                   window.location.href = `/speedboat/book/payment?id=${encodeURIComponent(b.id)}`;
                 } : undefined}
                 onIssueRefund={(b.status === 'Booked') ? () => { setRefundBooking(b); setRefundOpen(true); } : undefined}
                 onViewDetails={(b.status === 'Expired' || b.status === 'Pending' || b.status === 'Refunded' || b.status === 'Cancelled') ? () => { setDetail(b); setDetailOpen(true); } : undefined}
                 onViewTicket={(b.status === 'Booked' || b.status === 'Completed') ? () => {
+                  setTicketLoadingMap((prev) => ({ ...prev, [b.id]: true }));
                   try { localStorage.setItem('booking_id', b.id); } catch {}
                   window.location.href = `/speedboat/book/ticket?id=${encodeURIComponent(b.id)}`;
                 } : undefined}
                 onViewInvoice={(b.status === 'Booked') ? async () => {
+                  setInvoice(null);
+                  setInvoiceOpen(true);
+                  setInvoiceLoading(true);
                   try {
                     const { data: { session } } = await supabase.auth.getSession();
                     const uid = session?.user?.id || '';
@@ -738,25 +997,31 @@ export default function MyBookingsPage() {
                     if (res.ok) {
                       const j = await res.json();
                       setInvoice(j?.booking || null);
-                      setInvoiceOpen(true);
                     }
                   } catch {}
+                  setInvoiceLoading(false);
                 } : undefined}
                 onReview={(b.status === 'Completed' && !b.hasReview) ? () => { setReviewBooking(b); setReviewOpen(true); } : undefined}
                 hasReview={b.hasReview}
                 onViewReview={(b.status === 'Completed' && b.hasReview) ? async () => {
+                  setViewReview(null);
+                  setViewReviewOpen(true);
+                  setViewReviewLoading(true);
                   try {
                     const res = await fetch(`/api/bookings?reviewOf=${encodeURIComponent(b.id)}`, { cache: 'no-store' });
                     if (res.ok) {
                       const j = await res.json();
                       setViewReview(j?.review || null);
-                      setViewReviewOpen(true);
                     }
                   } catch {}
+                  setViewReviewLoading(false);
                 } : undefined}
+                loadingViewTicket={!!ticketLoadingMap[b.id]}
+                loadingPayNow={!!payLoadingMap[b.id]}
               />
-            ))}
-          </Stack>
+              ))}
+            </Stack>
+          )}
         </Container>
       </Box>
     </Box>

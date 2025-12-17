@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from 'react';
-import { Box, Text, Group, Button, Container, Modal, TextInput, NumberInput, Stack, Select } from '@mantine/core';
+import { Box, Text, Group, Button, Container, Modal, TextInput, Stack, Select } from '@mantine/core';
 import { Header } from '@/components/layout/header';
 import { SavedTravelersTable } from '@/components/profile/SavedTravelersTable';
 import { supabase } from '@/lib/supabase/client';
@@ -11,20 +11,23 @@ export default function Page() {
   const [travelers, setTravelers] = useState<Array<{ id?: string; title: string; firstName: string; lastName: string; nationality: string; identityType: string; idNumber: string; ageCategory: string; age?: number }>>([]);
   const [open, setOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [fetchLoading, setFetchLoading] = useState(true);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [age, setAge] = useState<number | string>('');
   const [nationality, setNationality] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [title, setTitle] = useState('Mr');
   const [identityType, setIdentityType] = useState('KTP');
   const [ageCategory, setAgeCategory] = useState('Adult');
+  const [saveLoading, setSaveLoading] = useState(false);
 
   useEffect(() => {
     const check = async () => {
+      setFetchLoading(true);
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         router.replace('/login?redirectTo=/profile/saved-travelers');
+        setFetchLoading(false);
         return;
       }
       const uidKey = (session.user.id || (session.user.email || '').trim().toLowerCase());
@@ -48,6 +51,7 @@ export default function Page() {
           age: typeof t?.age === 'number' ? t.age : undefined,
         })));
       }
+      setFetchLoading(false);
     };
     check();
   }, []);
@@ -71,7 +75,6 @@ export default function Page() {
     setTitle('Mr');
     setFirstName('');
     setLastName('');
-    setAge('');
     setNationality('Indonesia');
     setIdentityType('KTP');
     setIdNumber('');
@@ -85,7 +88,6 @@ export default function Page() {
     setTitle(t.title);
     setFirstName(t.firstName);
     setLastName(t.lastName);
-    setAge(t.age || 0);
     setNationality(t.nationality);
     setIdentityType(t.identityType);
     setIdNumber(t.idNumber);
@@ -94,16 +96,18 @@ export default function Page() {
   };
 
   const submit = async () => {
+    if (saveLoading) return;
+    setSaveLoading(true);
+    const finalAgeCategory = String(ageCategory || 'Adult');
     const item = {
       id: editingIndex == null ? `${Date.now()}_${Math.random().toString(36).slice(2, 8)}` : travelers[editingIndex]?.id,
       title: String(title || 'Mr'),
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      age: Number(age || 0),
       nationality: nationality.trim(),
       identityType: String(identityType || 'KTP'),
       idNumber: idNumber.trim(),
-      ageCategory: String(ageCategory || 'Adult'),
+      ageCategory: finalAgeCategory,
     };
     if (editingIndex == null) {
       await persist([...travelers, item]);
@@ -113,6 +117,7 @@ export default function Page() {
       await persist(next);
     }
     setOpen(false);
+    setSaveLoading(false);
   };
 
   const remove = async (idx: number) => {
@@ -155,6 +160,7 @@ export default function Page() {
             travelers={travelers}
             onEdit={(_, i) => openEdit(i)}
             onDelete={(_, i) => remove(i)}
+            loading={fetchLoading}
           />
         </Container>
       </Box>
@@ -164,13 +170,12 @@ export default function Page() {
           <Select label="Title" data={["Mr", "Mrs", "Ms"]} value={title} onChange={(val) => val && setTitle(val)} />
           <TextInput label="First Name" placeholder="First name" value={firstName} onChange={(e) => setFirstName(e.currentTarget.value)} required />
           <TextInput label="Last Name" placeholder="Last name" value={lastName} onChange={(e) => setLastName(e.currentTarget.value)} />
-          <NumberInput label="Age" placeholder="Age" value={age} onChange={setAge} min={0} clampBehavior="strict" />
-          <Select label="Nationality" data={["Indonesia", "Malaysia", "Singapore"]} value={nationality} onChange={(val) => val && setNationality(val)} />
+          <Select label="Nationality" data={["Indonesia", "Malaysia", "Singapore", "Thailand", "Philippines"]} value={nationality} onChange={(val) => val && setNationality(val)} />
           <Select label="Identity Type" data={["KTP", "Passport", "SIM"]} value={identityType} onChange={(val) => val && setIdentityType(val)} />
           <TextInput label="ID Number" placeholder="ID number" value={idNumber} onChange={(e) => setIdNumber(e.currentTarget.value)} />
           <Select label="Age Category" data={["Adult", "Child", "Infant"]} value={ageCategory} onChange={(val) => val && setAgeCategory(val)} />
           <Group justify="flex-end">
-            <Button styles={{ root: { backgroundColor: '#284361', fontWeight: 600 } }} onClick={submit}>Save</Button>
+            <Button styles={{ root: { backgroundColor: '#284361', fontWeight: 600 } }} onClick={submit} loading={saveLoading}>Save</Button>
           </Group>
         </Stack>
       </Modal>

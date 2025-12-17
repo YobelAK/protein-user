@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Paper, Title, Stack, Group, Text, Divider, Alert, Button } from '@mantine/core';
+import { Paper, Title, Stack, Group, Text, Divider, Alert, Button, Box, Loader } from '@mantine/core';
 import { IconAlertCircle, IconClock } from '@tabler/icons-react';
 
 interface PaymentSummaryProps {
@@ -18,6 +18,9 @@ interface PaymentSummaryProps {
   vaNumber?: string;
   vaBankCode?: string;
   onRefresh?: () => void;
+  loading?: boolean;
+  payLoading?: boolean;
+  refreshLoading?: boolean;
 }
 
 export function PaymentSummary({
@@ -34,6 +37,9 @@ export function PaymentSummary({
   vaNumber,
   vaBankCode,
   onRefresh,
+  loading,
+  payLoading,
+  refreshLoading,
 }: PaymentSummaryProps) {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [expiredNotified, setExpiredNotified] = useState(false);
@@ -73,7 +79,8 @@ export function PaymentSummary({
     return () => clearInterval(id);
   }, [booking]);
 
-  const content = (
+  const isLoading = !!loading || (!booking && !(Array.isArray(bookings) && bookings.length > 0));
+  const inner = (
     <Stack gap="xl">
       <Title order={2} style={{ color: '#284361', fontSize: '1.25rem', fontWeight: 700 }}>
         {title || 'Payment Summary'}
@@ -175,6 +182,7 @@ export function PaymentSummary({
         }
       }}
         disabled={!!disabled || timeLeft === 0 || (booking?.status === 'PAID' || booking?.status === 'COMPLETED') || !!(qrString || qrImageUrl || vaNumber)}
+        loading={!!payLoading}
       >
         {buttonText}
       </Button>
@@ -192,11 +200,22 @@ export function PaymentSummary({
             padding: '12px 24px'
           }}
           disabled={timeLeft === 0}
+          loading={!!refreshLoading}
         >
           Refresh Payment
         </Button>
       )}
     </Stack>
+  );
+  const content = (
+    <Box style={{ position: 'relative' }}>
+      {isLoading && (
+        <Box style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.6)', zIndex: 10 }}>
+          <Loader color="#284361" />
+        </Box>
+      )}
+      {inner}
+    </Box>
   );
 
   return noWrapper ? content : (

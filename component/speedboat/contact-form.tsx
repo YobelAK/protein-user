@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Paper, Stack, Title, Grid, TextInput, Select, NumberInput, Textarea, Checkbox, Group, Text, Anchor, ScrollArea, Modal } from '@mantine/core';
+import { Paper, Stack, Title, Grid, TextInput, Select, NumberInput, Textarea, Checkbox, Group, Text, Anchor, ScrollArea, Modal, Input, Autocomplete, Box, Loader } from '@mantine/core';
 import { IconChevronDown } from '@tabler/icons-react';
+import { supabase } from '@/lib/supabase/client';
 
 interface ContactFormProps {
   guestCount: number;
@@ -32,6 +33,9 @@ export function ContactForm({ guestCount, onGuestCountChange, onChange, availabl
   const [modalType, setModalType] = useState<'terms' | 'privacy' | null>(null)
   const openModal = (type: 'terms' | 'privacy') => { setModalType(type); setModalOpened(true) }
   const closeModal = () => { setModalOpened(false); setModalType(null) }
+  const [savedTravelers, setSavedTravelers] = useState<Array<{ id?: string; title?: string; firstName: string; lastName: string }>>([]);
+  const [profile, setProfile] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (onChange) {
@@ -39,9 +43,61 @@ export function ContactForm({ guestCount, onGuestCountChange, onChange, availabl
     }
   }, [firstName, lastName, email, countryCode, phone, specialRequests, agreed, onChange]);
 
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const uidKey = (session.user.id || (session.user.email || '').trim().toLowerCase());
+          let arr: any = (session.user as any)?.user_metadata?.savedTravelers || [];
+          if (!Array.isArray(arr) || arr.length === 0) {
+            try {
+              const raw = typeof window !== 'undefined' ? localStorage.getItem(`saved_travelers:${uidKey}`) || '' : '';
+              arr = raw ? JSON.parse(raw) : [];
+            } catch { arr = []; }
+          }
+          if (Array.isArray(arr)) {
+            setSavedTravelers(arr.map((t: any) => ({
+              id: t?.id,
+              title: String(t?.title || 'Mr'),
+              firstName: String(t?.firstName || ''),
+              lastName: String(t?.lastName || ''),
+            })));
+          } else {
+            setSavedTravelers([]);
+          }
+          const metaName = String((session.user as any)?.user_metadata?.full_name || '').trim();
+          const metaEmail = String(session.user.email || '').trim();
+          try {
+            const email = session.user.email || '';
+            const uid = session.user.id || '';
+            const query = email ? `email=${encodeURIComponent(email)}` : `userId=${encodeURIComponent(uid)}`;
+            const res = await fetch(`/api/profile?${query}`, { cache: 'no-store' });
+            if (res.ok) {
+              const data = await res.json();
+              setProfile(data);
+            }
+          } catch {}
+          // keep fields empty; fill only after user selects a suggestion
+        } else {
+          setSavedTravelers([]);
+        }
+      } catch {}
+      setLoading(false);
+    };
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <Paper shadow="sm" p="xl" radius="lg" bg="white">
+    <Paper shadow="sm" p="xl" radius="lg" bg="white" style={{ position: 'relative' }}>
       <Stack gap="xl">
+        {loading && (
+          <Box style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.6)' }}>
+            <Loader color="#284361" />
+          </Box>
+        )}
         <Title order={2} size="xl" fw={600} c="dark">Contact Information</Title>
         
         <Grid gutter="xl">
@@ -104,12 +160,51 @@ export function ContactForm({ guestCount, onGuestCountChange, onChange, availabl
                     </ScrollArea>
                   </Modal>
           <Grid.Col span={{ base: 12, md: 3 }}>
-            <TextInput
+            <Autocomplete
               label="First Name"
               placeholder="Enter first name"
               required
+              data={
+                [
+                  ...(profile?.fullName ? [String(profile.fullName)] : []),
+                  ...savedTravelers.map((t) => t.firstName).filter(Boolean)
+                ]
+              }
               value={firstName}
-              onChange={(e) => setFirstName(e.currentTarget.value)}
+              onChange={(val) => {
+                const pf = String(profile?.fullName || '').trim();
+                if (pf && String(val || '').trim().toLowerCase() === pf.toLowerCase()) {
+                  return;
+                }
+                setFirstName(val);
+              }}
+              onOptionSubmit={(val) => {
+                const t = savedTravelers.find((s) => String(s.firstName || '').toLowerCase() === String(val || '').toLowerCase());
+                if (t) {
+                  setFirstName(t.firstName || '');
+                  setLastName(t.lastName || '');
+                  return;
+                }
+                const pf = String(profile?.fullName || '').trim();
+                if (pf) {
+                  const isProfile = String(val || '').trim().toLowerCase() === pf.toLowerCase() || String(val || '').trim().toLowerCase() === pf.split(/\s+/)[0]?.toLowerCase();
+                  if (isProfile) {
+                    const parts = pf.split(/\s+/).filter(Boolean);
+                    setFirstName(parts[0] || '');
+                    setLastName(parts.length > 1 ? parts.slice(1).join(' ') : '');
+                    if (profile?.email) setEmail(String(profile.email));
+                    const nat = String(profile?.nationality || '').toLowerCase();
+                    const code =
+                      nat.includes('indonesia') ? '+62' :
+                      nat.includes('malaysia') ? '+60' :
+                      nat.includes('singapore') ? '+65' :
+                      nat.includes('thailand') ? '+66' :
+                      nat.includes('philippines') ? '+63' :
+                      countryCode;
+                    setCountryCode(code);
+                  }
+                }
+              }}
               styles={{
                 label: { fontSize: '14px', fontWeight: 500, color: '#374151', marginBottom: 8 },
                 input: {
@@ -129,7 +224,7 @@ export function ContactForm({ guestCount, onGuestCountChange, onChange, availabl
             <TextInput
               label="Last Name"
               placeholder="Enter last name"
-              required
+              // required
               value={lastName}
               onChange={(e) => setLastName(e.currentTarget.value)}
               styles={{
@@ -175,52 +270,58 @@ export function ContactForm({ guestCount, onGuestCountChange, onChange, availabl
           
           <Grid.Col span={{ base: 12, md: 6 }}>
             <Stack gap="xs">
-              <Text size="sm" fw={500} c="#374151">Phone Number</Text>
-              <Group gap="sm">
-                <Select
-                  data={[
-                    { value: '+62', label: '+62' },
-                    { value: '+1', label: '+1' },
-                    { value: '+44', label: '+44' },
-                    { value: '+61', label: '+61' }
-                  ]}
-                  value={countryCode}
-                  onChange={(v) => v && setCountryCode(v)}
-                  rightSection={<IconChevronDown size={16} />}
-                  styles={{
-                    input: {
-                      padding: '12px 16px',
-                      backgroundColor: 'white',
-                      color: '#111827',
-                      border: '1px solid #d1d5db',
-                      width: 80,
-                      '&:focus': { 
-                        borderColor: '#284361',
-                        boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
+              <Input.Wrapper label="Phone Number" withAsterisk styles={{ label: { fontSize: '14px', fontWeight: 500, color: '#374151' } }}>
+                <Group gap="sm">
+                  <Select
+                    data={[
+                      { value: '+62', label: '+62' },
+                      { value: '+60', label: '+60' },
+                      { value: '+65', label: '+65' },
+                      { value: '+66', label: '+66' },
+                      { value: '+63', label: '+63' },
+                      { value: '+1', label: '+1' },
+                      { value: '+44', label: '+44' },
+                      { value: '+61', label: '+61' }
+                    ]}
+                    value={countryCode}
+                    onChange={(v) => v && setCountryCode(v)}
+                    rightSection={<IconChevronDown size={16} />}
+                    styles={{
+                      input:
+                      {
+                        padding: '12px 16px',
+                        backgroundColor: 'white',
+                        color: '#111827',
+                        border: '1px solid #d1d5db',
+                        width: 80,
+                        '&:focus': { 
+                          borderColor: '#284361',
+                          boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
+                        }
                       }
-                    }
-                  }}
-                />
-                <TextInput
-                  placeholder="Enter phone number"
-                  required
-                  style={{ flex: 1 }}
-                  value={phone}
-                  onChange={(e) => setPhone(e.currentTarget.value)}
-                  styles={{
-                    input: {
-                      padding: '12px 16px',
-                      backgroundColor: 'white',
-                      color: '#111827',
-                      border: '1px solid #d1d5db',
-                      '&:focus': { 
-                        borderColor: '#284361',
-                        boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
+                    }}
+                  />
+                  <TextInput
+                    placeholder="Enter phone number"
+                    required
+                    style={{ flex: 1 }}
+                    value={phone}
+                    onChange={(e) => setPhone(e.currentTarget.value)}
+                    styles={{
+                      input: {
+                        padding: '12px 16px',
+                        backgroundColor: 'white',
+                        color: '#111827',
+                        border: '1px solid #d1d5db',
+                        '&:focus': { 
+                          borderColor: '#284361',
+                          boxShadow: '0 0 0 2px rgba(40, 67, 97, 0.2)'
+                        }
                       }
-                    }
-                  }}
-                />
-              </Group>
+                    }}
+                  />
+                </Group>
+              </Input.Wrapper>
             </Stack>
           </Grid.Col>
           

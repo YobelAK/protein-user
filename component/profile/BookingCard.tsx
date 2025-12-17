@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Box, Paper, Group, Text, Button, Image, Menu, ActionIcon, Stack, Badge } from '@mantine/core';
+import { Box, Paper, Group, Text, Button, Image, Menu, ActionIcon, Stack, Badge, SimpleGrid } from '@mantine/core';
 import { FileText, CreditCard, MoreVertical } from 'lucide-react';
 import { useMediaQuery } from '@mantine/hooks';
 
@@ -11,11 +11,20 @@ interface BookingCardProps {
   initials: string;
   title: string;
   location: string;
+  returnLocation?: string;
+  returnVendorName?: string;
+  returnBoatName?: string;
   bookingDate: string;
   departureDate?: string;
+  returnDate?: string;
   departureTime?: string;
   arrivalTime?: string;
+  returnDepartureTime?: string;
+  returnArrivalTime?: string;
   passengers: number;
+  isDoubleTrip?: boolean;
+  departurePassengers?: number;
+  returnPassengers?: number;
   bookingCode: string;
   status: BookingStatus;
   image?: string;
@@ -31,6 +40,9 @@ interface BookingCardProps {
   onReview?: () => void;
   hasReview?: boolean;
   onViewReview?: () => void;
+  loadingPayNow?: boolean;
+  loadingViewTicket?: boolean;
+  loadingReviewButton?: boolean;
 }
 
 export function BookingCard({
@@ -39,6 +51,9 @@ export function BookingCard({
   location,
   bookingDate,
   passengers,
+  isDoubleTrip,
+  departurePassengers,
+  returnPassengers,
   bookingCode,
   status,
   image,
@@ -55,8 +70,17 @@ export function BookingCard({
   hasReview,
   onViewReview,
   departureDate,
+  returnDate,
   departureTime,
   arrivalTime,
+  returnDepartureTime,
+  returnArrivalTime,
+  returnLocation,
+  returnVendorName,
+  returnBoatName,
+  loadingPayNow,
+  loadingViewTicket,
+  loadingReviewButton,
 }: BookingCardProps) {
   const statusStyles: Record<BookingStatus, { bg: string; color: string }> = {
     Pending: { bg: '#e0f2fe', color: '#075985' },
@@ -85,6 +109,52 @@ export function BookingCard({
     return () => clearInterval(id);
   }, [deadlineAt]);
 
+  const double = !!(isDoubleTrip ?? (returnDate || returnDepartureTime || returnArrivalTime || returnLocation));
+  const depPax = departurePassengers ?? (double ? undefined : passengers);
+  const retPax = returnPassengers ?? (double ? undefined : undefined);
+  const routeCombined = (() => {
+    const loc = String(location || '');
+    const parts = loc.split('→').map((s) => s.trim());
+    if (parts.length === 2) return `${parts[0]} ⇄ ${parts[1]}`;
+    const alt = loc.split('->').map((s) => s.trim());
+    if (alt.length === 2) return `${alt[0]} ⇄ ${alt[1]}`;
+    return loc;
+  })();
+  const dateRange = (() => {
+    const dep = departureDate || '';
+    const ret = returnDate || '';
+    if (dep && ret) {
+      const retYear = (ret.match(/\d{4}$/) || [null])[0];
+      const depShort = dep.replace(/\s*\d{4}$/, '');
+      return retYear ? `${depShort} – ${ret}` : `${dep} – ${ret}`;
+    }
+    return dep || ret || '';
+  })();
+  const outboundVendorFromTitle = (() => {
+    const segs = String(title || '').split(' \u2022 ').map((s) => s.trim()).filter(Boolean);
+    return segs.length >= 2 ? segs[1] : undefined;
+  })();
+  const outboundBoatFromTitle = (() => {
+    const segs = String(title || '').split(' \u2022 ').map((s) => s.trim()).filter(Boolean);
+    return segs.length >= 1 ? segs[0] : undefined;
+  })();
+  const vendorSummary = (() => {
+    if (!double) return '';
+    const ov = outboundVendorFromTitle ? outboundVendorFromTitle.toLowerCase() : undefined;
+    const rv = returnVendorName ? returnVendorName.toLowerCase() : undefined;
+    const ob = outboundBoatFromTitle ? outboundBoatFromTitle.toLowerCase() : undefined;
+    const rb = returnBoatName ? returnBoatName.toLowerCase() : undefined;
+    if (ov && rv) {
+      if (ov === rv) return outboundVendorFromTitle as string;
+      return 'Multiple vendors';
+    }
+    if (ob && rb) {
+      if (ob === rb) return outboundVendorFromTitle || returnVendorName || (outboundBoatFromTitle as string);
+      return 'Multiple vendors';
+    }
+    return outboundVendorFromTitle || returnVendorName || 'Multiple vendors';
+  })();
+
   return (
     <Paper
       withBorder
@@ -96,7 +166,7 @@ export function BookingCard({
         {isMobile ? (
           <Stack gap={6}>
             <Group justify="space-between" align="center">
-              <Text c="#284361" fw={700}>Booking</Text>
+              <Text c="#284361" fw={700}>{double ? 'Double trip Booking' : 'Booking'}</Text>
               <Group gap={8} align="center">
                 {(status === 'Pending' && pendingType === 'payment') && (
                   <Badge color="red" variant="filled" styles={{ root: { borderRadius: 8 } }}>
@@ -133,7 +203,7 @@ export function BookingCard({
         ) : (
           <Group justify="space-between" align="center">
             <Group gap={16}>
-              <Text c="#284361" fw={700}>Booking</Text>
+              <Text c="#284361" fw={700}>{double ? 'Double trip Booking' : 'Booking'}</Text>
               <Text c="#6b7280">Code: <Text span c="#284361" fw={600}>{bookingCode}</Text></Text>
               <Text c="#6b7280">Booking Date: <Text span c="#284361" fw={600}>{bookingDate}</Text></Text>
             </Group>
@@ -193,25 +263,62 @@ export function BookingCard({
                 {image ? <Image src={image} alt={title} width={64} height={64} fit="cover" /> : initials}
               </Box>
               <Box style={{ flex: 1 }}>
-                <Text c="#284361" fw={600} size="lg" mb={4}>{title}</Text>
-                <Text c="#6b7280" size="sm" mb={8}>{location}</Text>
-                <Text c="#6b7280" size="sm">Passengers: <Text span c="#284361" fw={500}>{passengers}</Text></Text>
+                <Text c="#284361" fw={700} size="lg" mb={4}>{double ? routeCombined : location}</Text>
+                <Text c="#284361" fw={600} size="md" mb={8}>{double ? dateRange : (departureDate || '')}</Text>
+                {double ? (
+                  <Text c="#6b7280" size="sm" mb={8}>{vendorSummary}</Text>
+                ) : (
+                  <>
+                    {outboundVendorFromTitle ? (
+                      <Text c="#6b7280" size="sm" mb={4}>Provider: <Text span c="#284361" fw={500}>{outboundVendorFromTitle}</Text></Text>
+                    ) : null}
+                    {outboundBoatFromTitle ? (
+                      <Text c="#6b7280" size="sm" mb={8}>Boat: <Text span c="#284361" fw={500}>{outboundBoatFromTitle}</Text></Text>
+                    ) : null}
+                  </>
+                )}
+                {double ? (
+                  <Stack gap={4}>
+                    <Text c="#6b7280" size="sm">Departure Passengers: <Text span c="#284361" fw={500}>{depPax ?? '—'}</Text></Text>
+                    <Text c="#6b7280" size="sm">Return Passengers: <Text span c="#284361" fw={500}>{retPax ?? '—'}</Text></Text>
+                  </Stack>
+                ) : (
+                  <Text c="#6b7280" size="sm">Passengers: <Text span c="#284361" fw={500}>{depPax ?? passengers}</Text></Text>
+                )}
               </Box>
             </Group>
-            <Stack gap={6}>
-              <Group justify="space-between" align="center">
-                <Text c="#6b7280" size="sm">Departure Date</Text>
-                <Text fw={600} c="#284361">{departureDate || '—'}</Text>
-              </Group>
-              <Group justify="space-between" align="center">
-                <Text c="#6b7280" size="sm">Departure Time</Text>
-                <Text fw={600} c="#284361">{departureTime || '—'}</Text>
-              </Group>
-              <Group justify="space-between" align="center">
-                <Text c="#6b7280" size="sm">Arrival Time</Text>
-                <Text fw={600} c="#284361">{arrivalTime || '—'}</Text>
-              </Group>
-            </Stack>
+            <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+              <Stack gap={6}>
+                <Group justify="space-between" align="center">
+                  <Text c="#6b7280" size="sm">Departure Date</Text>
+                  <Text fw={600} c="#284361">{departureDate || '—'}</Text>
+                </Group>
+                <Group justify="space-between" align="center">
+                  <Text c="#6b7280" size="sm">Departure Time</Text>
+                  <Text fw={600} c="#284361">{departureTime || '—'}</Text>
+                </Group>
+                <Group justify="space-between" align="center">
+                  <Text c="#6b7280" size="sm">Arrival Time</Text>
+                  <Text fw={600} c="#284361">{arrivalTime || '—'}</Text>
+                </Group>
+              </Stack>
+              {double ? (
+                <Stack gap={6}>
+                  <Group justify="space-between" align="center">
+                    <Text c="#6b7280" size="sm">Return Date</Text>
+                    <Text fw={600} c="#284361">{returnDate || '—'}</Text>
+                  </Group>
+                  <Group justify="space-between" align="center">
+                    <Text c="#6b7280" size="sm">Return Departure Time</Text>
+                    <Text fw={600} c="#284361">{returnDepartureTime || '—'}</Text>
+                  </Group>
+                  <Group justify="space-between" align="center">
+                    <Text c="#6b7280" size="sm">Return Arrival Time</Text>
+                    <Text fw={600} c="#284361">{returnArrivalTime || '—'}</Text>
+                  </Group>
+                </Stack>
+              ) : null}
+            </SimpleGrid>
           </Stack>
         ) : (
           <Group justify="space-between" align="flex-start" style={{ alignItems: 'stretch' }}>
@@ -235,26 +342,65 @@ export function BookingCard({
                 {image ? <Image src={image} alt={title} width={80} height={80} fit="cover" /> : initials}
               </Box>
               <Box style={{ flex: 1 }}>
-                <Text c="#284361" fw={600} size="lg" mb={4}>{title}</Text>
-                <Text c="#6b7280" size="sm" mb={12}>{location}</Text>
+                <Text c="#284361" fw={700} size="lg" mb={4}>{double ? routeCombined : location}</Text>
+                <Text c="#284361" fw={600} size="md" mb={12}>{double ? dateRange : (departureDate || '')}</Text>
+                {double ? (
+                  <Text c="#6b7280" size="sm" mb={12}>{vendorSummary}</Text>
+                ) : (
+                  <>
+                    {outboundVendorFromTitle ? (
+                      <Text c="#6b7280" size="sm" mb={6}>Provider: <Text span c="#284361" fw={500}>{outboundVendorFromTitle}</Text></Text>
+                    ) : null}
+                    {outboundBoatFromTitle ? (
+                      <Text c="#6b7280" size="sm" mb={12}>Boat: <Text span c="#284361" fw={500}>{outboundBoatFromTitle}</Text></Text>
+                    ) : null}
+                  </>
+                )}
                 <Group gap={24}>
-                  <Text c="#6b7280" size="sm">Passengers: <Text span c="#284361" fw={500}>{passengers}</Text></Text>
+                  {double ? (
+                    <Group gap={24}>
+                      <Text c="#6b7280" size="sm">Departure Passengers: <Text span c="#284361" fw={500}>{depPax ?? '—'}</Text></Text>
+                      <Text c="#6b7280" size="sm">Return Passengers: <Text span c="#284361" fw={500}>{retPax ?? '—'}</Text></Text>
+                    </Group>
+                  ) : (
+                    <Text c="#6b7280" size="sm">Passengers: <Text span c="#284361" fw={500}>{depPax ?? passengers}</Text></Text>
+                  )}
                 </Group>
               </Box>
             </Group>
-            <Box style={{ textAlign: 'right' }}>
-              <Group justify="space-between" align="center">
-                <Text c="#6b7280" size="sm">Departure Date</Text>
-                <Text fw={600} c="#284361">{departureDate || '—'}</Text>
-              </Group>
-              <Group justify="space-between" align="center">
-                <Text c="#6b7280" size="sm">Departure Time</Text>
-                <Text fw={600} c="#284361">{departureTime || '—'}</Text>
-              </Group>
-              <Group justify="space-between" align="center">
-                <Text c="#6b7280" size="sm">Arrival Time</Text>
-                <Text fw={600} c="#284361">{arrivalTime || '—'}</Text>
-              </Group>
+            <Box style={{ flex: 1, ...(double ? {} : { display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }) }}>
+              <SimpleGrid cols={{ base: 1, md: double ? 2 : 1 }} spacing="md">
+                <Stack gap={6}>
+                  <Group justify="space-between" align="center">
+                    <Text c="#6b7280" size="sm">Departure Date</Text>
+                    <Text fw={600} c="#284361">{departureDate || '—'}</Text>
+                  </Group>
+                  <Group justify="space-between" align="center">
+                    <Text c="#6b7280" size="sm">Departure Time</Text>
+                    <Text fw={600} c="#284361">{departureTime || '—'}</Text>
+                  </Group>
+                  <Group justify="space-between" align="center">
+                    <Text c="#6b7280" size="sm">Arrival Time</Text>
+                    <Text fw={600} c="#284361">{arrivalTime || '—'}</Text>
+                  </Group>
+                </Stack>
+                {double ? (
+                  <Stack gap={6}>
+                    <Group justify="space-between" align="center">
+                      <Text c="#6b7280" size="sm">Return Date</Text>
+                      <Text fw={600} c="#284361">{returnDate || '—'}</Text>
+                    </Group>
+                    <Group justify="space-between" align="center">
+                      <Text c="#6b7280" size="sm">Return Departure Time</Text>
+                      <Text fw={600} c="#284361">{returnDepartureTime || '—'}</Text>
+                    </Group>
+                    <Group justify="space-between" align="center">
+                      <Text c="#6b7280" size="sm">Return Arrival Time</Text>
+                      <Text fw={600} c="#284361">{returnArrivalTime || '—'}</Text>
+                    </Group>
+                  </Stack>
+                ) : null}
+              </SimpleGrid>
             </Box>
           </Group>
         )}
@@ -284,6 +430,7 @@ export function BookingCard({
                 styles={{ root: { borderRadius: 8 } }}
                 onClick={onPayNow}
                 disabled={timeLeft === 0}
+                loading={!!loadingPayNow}
               >
                 Pay Now
               </Button>
@@ -294,6 +441,7 @@ export function BookingCard({
                 style={{ backgroundColor: '#284361' }}
                 styles={{ root: { borderRadius: 8 } }}
                 onClick={onViewTicket}
+                loading={!!loadingViewTicket}
               >
                 View E-Ticket
               </Button>
@@ -304,6 +452,7 @@ export function BookingCard({
                 styles={{ root: { borderRadius: 8 } }}
                 onClick={onReview}
                 disabled={!!hasReview}
+                loading={!!loadingReviewButton}
               >
                 Review
               </Button>

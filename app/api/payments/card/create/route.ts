@@ -78,53 +78,85 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing Xendit configuration' }, { status: 500 });
     }
     const basic = Buffer.from(`${apiKey}:`).toString('base64');
-    const pmPayload = {
-      type: 'CARD',
-      reusability: 'ONE_TIME',
-      card: {
-        number: cardNumber,
-        exp_month: cardExpMonth,
-        exp_year: cardExpYear,
-        cvn: cardCvn,
-      },
-      billing_details: {
-        given_names: cardName || String(booking.customerName || ''),
-        email: cardEmail || String(booking.customerEmail || ''),
-        mobile_number: cardPhone || String(booking.customerPhone || ''),
-      },
-    } as any;
-    const pmRes = await fetch('https://api.xendit.co/payment_methods', {
-      method: 'POST',
-      headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(pmPayload),
-    });
-    if (!pmRes.ok) {
-      const text = await pmRes.text();
-      return NextResponse.json({ error: 'Failed to create payment method', detail: text }, { status: 502 });
-    }
-    const pm = await pmRes.json();
-    const paymentPayload = {
-      amount,
-      currency: 'IDR',
-      capture_method: 'AUTOMATIC',
-      payment_method_id: String(pm?.id || ''),
+    const fp = request.headers.get('x-forwarded-proto') || request.headers.get('X-Forwarded-Proto') || '';
+    const fh = request.headers.get('x-forwarded-host') || request.headers.get('X-Forwarded-Host') || '';
+    const hh = request.headers.get('host') || request.headers.get('Host') || '';
+    const proto = fp ? fp : (request.url.startsWith('https') ? 'https' : 'http');
+    const host = fh || hh || '';
+    const origin = host ? `${proto}://${host}` : (request.url.startsWith('http') ? new URL(request.url).origin : '');
+    const mid = process.env.XENDIT_MID_LABEL || '';
+    const name = String(cardName || '').trim();
+    const first = name.split(/\s+/).filter(Boolean)[0] || String(booking.customerName || '').split(/\s+/).filter(Boolean)[0] || '';
+    const rest = name.split(/\s+/).filter(Boolean).slice(1).join(' ');
+    const last = rest || String(booking.customerName || '').split(/\s+/).filter(Boolean).slice(1).join(' ');
+    const normalizePhone = (v: string) => {
+      const s = String(v || '').trim();
+      if (!s) return undefined;
+      const keep = s.replace(/[^\d+]/g, '');
+      if (!keep) return undefined;
+      if (keep.startsWith('+')) {
+        const q = '+' + keep.replace(/^\+/, '').replace(/\D/g, '');
+        if (/^\+[0-9]\d{1,14}$/.test(q)) return q;
+        return undefined;
+      }
+      const d = keep.replace(/\D/g, '');
+      if (!d) return undefined;
+      if (d.startsWith('0')) {
+        const r = '+62' + d.slice(1);
+        if (/^\+[0-9]\d{1,14}$/.test(r)) return r;
+        return undefined;
+      }
+      if (d.startsWith('62')) {
+        const r = '+' + d;
+        if (/^\+[0-9]\d{1,14}$/.test(r)) return r;
+        return undefined;
+      }
+      const r = '+62' + d;
+      if (/^\+[0-9]\d{1,14}$/.test(r)) return r;
+      return undefined;
+    };
+    const phoneE164 = normalizePhone(cardPhone || String(booking.customerPhone || ''));
+    const prPayload = {
       reference_id: `${booking.id}-${Math.floor(now / 1000)}`,
+      type: 'PAY',
+      country: 'ID',
+      currency: 'IDR',
+      request_amount: amount,
+      capture_method: 'AUTOMATIC',
+      channel_code: 'CARDS',
+      channel_properties: {
+        ...(mid ? { mid_label: mid } : {}),
+        card_details: {
+          cvn: cardCvn,
+          card_number: cardNumber,
+          expiry_year: String(cardExpYear),
+          expiry_month: String(cardExpMonth).padStart(2, '0'),
+          cardholder_first_name: first || '',
+          cardholder_last_name: last || '',
+          cardholder_email: cardEmail || String(booking.customerEmail || ''),
+          cardholder_phone_number: phoneE164 || undefined,
+        },
+        skip_three_ds: false,
+        failure_return_url: origin ? `${origin}/speedboat/book/payment?status=failed` : undefined,
+        success_return_url: origin ? `${origin}/speedboat/book/payment?status=success` : undefined,
+      },
       description: `Payment for booking ${booking.bookingCode || ''}`,
+      metadata: { booking_id: booking.id },
     } as any;
-    const payRes = await fetch('https://api.xendit.co/payments', {
+    const prRes = await fetch('https://api.xendit.co/v3/payment_requests', {
       method: 'POST',
-      headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(paymentPayload),
+      headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/json', 'api-version': '2024-11-11' },
+      body: JSON.stringify(prPayload),
     });
-    if (!payRes.ok) {
-      const text = await payRes.text();
+    if (!prRes.ok) {
+      const text = await prRes.text();
       return NextResponse.json({ error: 'Failed to create payment', detail: text }, { status: 502 });
     }
-    const payment = await payRes.json();
-    const pid = String(payment?.id || '');
-    const status = String(payment?.status || '').toUpperCase();
+    const pr = await prRes.json();
+    const pid = String(pr?.id || '');
+    const status = String(pr?.status || '').toUpperCase();
     let redirectUrl = '';
-    const acts = Array.isArray(payment?.actions) ? payment.actions : [];
+    const acts = Array.isArray(pr?.actions) ? pr.actions : [];
     if (acts && acts.length > 0) {
       const a = acts[0] as any;
       redirectUrl = String(a?.url || a?.redirect_url || '');
@@ -133,7 +165,7 @@ export async function POST(request: Request) {
       where: { id: booking.id },
       data: {
         paymentMethod: 'CARD',
-        xenditPaymentChannel: 'CARD',
+        xenditPaymentChannel: 'CARDS',
         xenditInvoiceId: pid || null,
         invoiceExpiryDate: expiresAt,
         updatedAt: new Date(),

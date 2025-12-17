@@ -1,7 +1,9 @@
+import React, { Suspense } from 'react';
 import { Hero } from '@/components/homepage/hero';
 import { SearchBar } from '@/components/homepage/search-bar';
 import { PlatformFeatures } from '@/components/homepage/platform-features';
 import { PopularDestinations } from '@/components/homepage/popular-destinations';
+import { Loader } from '@mantine/core';
 import { SpecialOffers } from '@/components/homepage/special-offers';
 import { Testimonials } from '@/components/homepage/testimonials';
 import { Newsletter } from '@/components/homepage/newsletter';
@@ -49,7 +51,19 @@ export default async function HomePage() {
       <Hero />
       <SearchBar fromOptions={from} toOptions={to} />
       {/* <PlatformFeatures /> */}
-      <PopularDestinations />
+      <Suspense
+        fallback={
+          <div style={{ backgroundColor: '#f8f9fa', padding: '8px 0' }}>
+            <div style={{ padding: '64px 16px', maxWidth: 1280, margin: '0 auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 224 }}>
+                <Loader color="#284361" />
+              </div>
+            </div>
+          </div>
+        }
+      >
+        <PopularDestinations />
+      </Suspense>
       {/* <SpecialOffers /> */}
       <Testimonials />
       <Newsletter />

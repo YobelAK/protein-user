@@ -3,7 +3,7 @@
 import React from 'react';
 import { Menu as MenuIcon, X, ChevronDown, Globe, DollarSign, User, CalendarDays, Users, LifeBuoy, LogOut } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { 
   AppShell, 
   Group, 
@@ -15,7 +15,8 @@ import {
   Stack, 
   Divider,
   Box,
-  Container
+  Container,
+  Loader
 } from '@mantine/core';
 import { Menu } from '@mantine/core';
 import { supabase } from '@/lib/supabase/client';
@@ -25,7 +26,11 @@ import { useAuth } from '@/app/providers';
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const auth = useAuth();
+  const [logoutLoading, setLogoutLoading] = React.useState(false);
+  const [navLoginLoading, setNavLoginLoading] = React.useState(false);
+  const [navRegisterLoading, setNavRegisterLoading] = React.useState(false);
 
   const computeInitials = (name: string) => {
     const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -43,13 +48,45 @@ export function Header() {
   }, [auth?.fullName, auth?.email]);
   const userInitials = auth ? computeInitials(userName) : null;
   const avatarUrl = auth?.avatarUrl || '';
+  const [avatarSrc, setAvatarSrc] = React.useState<string>('');
+  React.useEffect(() => {
+    const url = String(avatarUrl || '');
+    setAvatarSrc(url || '');
+    const idx = url.indexOf('/storage/v1/object/public/avatars/');
+    if (idx >= 0) {
+      const path = url.slice(idx + '/storage/v1/object/public/avatars/'.length);
+      if (path) {
+        (async () => {
+          try {
+            const res = await (supabase as any).storage.from('avatars').createSignedUrl(path, 3600);
+            const signed = res?.data?.signedUrl || '';
+            if (signed) setAvatarSrc(signed);
+          } catch {}
+        })();
+      }
+    }
+  }, [avatarUrl]);
 
   const isActive = (path: string) => {
     return pathname === path;
   };
 
-  
-
+  const currentRedirect = React.useMemo(() => {
+    try {
+      const path = pathname || '/';
+      const qs = searchParams?.toString() || '';
+      return qs ? `${path}?${qs}` : path;
+    } catch { return pathname || '/'; }
+  }, [pathname, searchParams]);
+  React.useEffect(() => {
+    try {
+      const x = currentRedirect || '/';
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('last_path', x);
+      }
+    } catch {}
+  }, [currentRedirect]);
+ 
   return (
     <Box 
       component="header" 
@@ -122,22 +159,38 @@ export function Header() {
             </Button> */}
             {!userInitials && (
               <>
-                <Link href="/login" style={{ textDecoration: 'none' }}>
-                  <Button variant="subtle" color="gray" size="sm">
-                    Login
-                  </Button>
-                </Link>
-                <Link href="/register" style={{ textDecoration: 'none' }}>
-                  <Button color="primary" size="sm" style={{ backgroundColor: '#284361' }}>
-                    Register
-                  </Button>
-                </Link>
+                <Button
+                  variant="subtle"
+                  color="gray"
+                  size="sm"
+                  loading={navLoginLoading}
+                  onClick={() => {
+                    if (navLoginLoading) return;
+                    setNavLoginLoading(true);
+                    router.push(`/login?redirectTo=${encodeURIComponent(currentRedirect || '/')}`);
+                  }}
+                >
+                  Login
+                </Button>
+                <Button
+                  color="primary"
+                  size="sm"
+                  style={{ backgroundColor: '#284361' }}
+                  loading={navRegisterLoading}
+                  onClick={() => {
+                    if (navRegisterLoading) return;
+                    setNavRegisterLoading(true);
+                    router.push(`/register?redirectTo=${encodeURIComponent(currentRedirect || '/')}`);
+                  }}
+                >
+                  Register
+                </Button>
               </>
             )}
             {userInitials && (
               <Menu position="bottom-end" shadow="md">
                 <Menu.Target>
-                  <Avatar size={40} radius="xl" src={avatarUrl} style={{ cursor: 'pointer', border: '2px solid #284361' }} />
+                  <Avatar size={40} radius="xl" src={avatarSrc || undefined} style={{ cursor: 'pointer', border: '2px solid #284361' }} />
                 </Menu.Target>
                 <Menu.Dropdown style={{ borderRadius: 12, border: '1px solid #e6e7ea', fontFamily: 'Georgia, Times, "Times New Roman", serif' }}>
                   <Menu.Label style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif', fontWeight: 600, color: '#284361', marginBottom: 6 }}>{userName}</Menu.Label>
@@ -145,7 +198,25 @@ export function Header() {
                   <Menu.Item leftSection={<CalendarDays size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/profile/my-bookings')}>My Bookings</Menu.Item>
                   <Menu.Item leftSection={<Users size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/profile/saved-travelers')}>Saved Travelers</Menu.Item>
                   <Menu.Item leftSection={<LifeBuoy size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/profile/support-center')}>Support Center</Menu.Item>
-                  <Menu.Item leftSection={<LogOut size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={async () => { await supabase.auth.signOut(); router.push('/'); }}>Logout</Menu.Item>
+                  <Menu.Item
+                    leftSection={<LogOut size={16} />}
+                    rightSection={logoutLoading ? <Loader size="xs" color="#284361" /> : undefined}
+                    disabled={logoutLoading}
+                    style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }}
+                    onClick={async () => {
+                      if (logoutLoading) return;
+                      setLogoutLoading(true);
+                      try {
+                        await supabase.auth.signOut();
+                        router.push('/');
+                      } catch {
+                      } finally {
+                        setLogoutLoading(false);
+                      }
+                    }}
+                  >
+                    Logout
+                  </Menu.Item>
                 </Menu.Dropdown>
               </Menu>
             )}
@@ -154,7 +225,7 @@ export function Header() {
           <Group gap="md" hiddenFrom="md">
             <Menu position="bottom-end" shadow="md">
               <Menu.Target>
-                <Avatar size={40} radius="xl" src={avatarUrl} style={{ cursor: 'pointer', border: '2px solid #284361' }} />
+                <Avatar size={40} radius="xl" src={avatarSrc || undefined} style={{ cursor: 'pointer', border: '2px solid #284361' }} />
               </Menu.Target>
               <Menu.Dropdown style={{ borderRadius: 12, border: '1px solid #e6e7ea', fontFamily: 'Georgia, Times, "Times New Roman", serif' }}>
                 {userInitials ? (
@@ -164,12 +235,52 @@ export function Header() {
                     <Menu.Item leftSection={<CalendarDays size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/profile/my-bookings')}>My Bookings</Menu.Item>
                     <Menu.Item leftSection={<Users size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/profile/saved-travelers')}>Saved Travelers</Menu.Item>
                     <Menu.Item leftSection={<LifeBuoy size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/profile/support-center')}>Support Center</Menu.Item>
-                    <Menu.Item leftSection={<LogOut size={16} />} style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={async () => { await supabase.auth.signOut(); router.push('/'); }}>Logout</Menu.Item>
+                    <Menu.Item
+                      leftSection={<LogOut size={16} />}
+                      rightSection={logoutLoading ? <Loader size="xs" color="#284361" /> : undefined}
+                      disabled={logoutLoading}
+                      style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }}
+                      onClick={async () => {
+                        if (logoutLoading) return;
+                        setLogoutLoading(true);
+                        try {
+                          await supabase.auth.signOut();
+                          router.push('/');
+                        } catch {
+                        } finally {
+                          setLogoutLoading(false);
+                        }
+                      }}
+                    >
+                      Logout
+                    </Menu.Item>
                   </>
                 ) : (
                   <>
-                    <Menu.Item style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/login')}>Login</Menu.Item>
-                    <Menu.Item style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }} onClick={() => router.push('/register')}>Register</Menu.Item>
+                    <Menu.Item
+                      style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }}
+                      rightSection={navLoginLoading ? <Loader size="xs" color="#284361" /> : undefined}
+                      disabled={navLoginLoading}
+                      onClick={() => {
+                        if (navLoginLoading) return;
+                        setNavLoginLoading(true);
+                        router.push(`/login?redirectTo=${encodeURIComponent(currentRedirect || '/')}`);
+                      }}
+                    >
+                      Login
+                    </Menu.Item>
+                    <Menu.Item
+                      style={{ fontFamily: 'Georgia, Times, "Times New Roman", serif' }}
+                      rightSection={navRegisterLoading ? <Loader size="xs" color="#284361" /> : undefined}
+                      disabled={navRegisterLoading}
+                      onClick={() => {
+                        if (navRegisterLoading) return;
+                        setNavRegisterLoading(true);
+                        router.push(`/register?redirectTo=${encodeURIComponent(currentRedirect || '/')}`);
+                      }}
+                    >
+                      Register
+                    </Menu.Item>
                   </>
                 )}
               </Menu.Dropdown>

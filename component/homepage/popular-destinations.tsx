@@ -15,7 +15,8 @@ import {
   Stack,
   Badge,
   ActionIcon,
-  Transition
+  Transition,
+  Loader
 } from '@mantine/core';
 import { IconArrowRight, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import Link from 'next/link';
@@ -28,6 +29,7 @@ export function PopularDestinations() {
   const [anim, setAnim] = useState<'slide-left' | 'slide-right'>('slide-right');
   const pendingOffset = React.useRef<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [loading, setLoading] = useState(true);
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
 
@@ -47,8 +49,13 @@ export function PopularDestinations() {
           arrId: String(d.arrId || ''),
           date: String(d.date || ''),
         })) : [];
-        if (mounted) setDestinations(list);
-      } catch {}
+        if (mounted) {
+          setDestinations(list);
+          setLoading(false);
+        }
+      } catch {
+        if (mounted) setLoading(false);
+      }
     })();
     return () => { mounted = false };
   }, []);
@@ -111,6 +118,11 @@ export function PopularDestinations() {
             </ActionIcon>
           </Group>
         </Group>
+        {loading ? (
+          <Box style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: isMobile ? 200 : 224 }}>
+            <Loader color="#284361" />
+          </Box>
+        ) : (
         <Transition mounted={mounted} transition={anim} duration={300} exitDuration={220} onExited={() => {
           if (pendingOffset.current != null) {
             setOffset(pendingOffset.current);
@@ -228,6 +240,7 @@ export function PopularDestinations() {
             </Box>
           )}
         </Transition>
+        )}
       </Container>
     </Box>
   );

@@ -1,20 +1,51 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Box, Group, Text, Anchor, Checkbox, Button, Container, Paper, Stack, Title, TextInput, ActionIcon } from "@mantine/core";
+import { Box, Group, Text, Anchor, Checkbox, Button, Container, Paper, Stack, Title, TextInput, ActionIcon, Modal } from "@mantine/core";
 import { IconEye, IconEyeOff } from "@tabler/icons-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from '@/lib/supabase/client';
 
 export default function AuthLoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cpOpen, setCpOpen] = useState(false);
+  const [cpEmail, setCpEmail] = useState<string>("");
+  const [cpSubmitting, setCpSubmitting] = useState(false);
+  const [cpMessage, setCpMessage] = useState<string | null>(null);
+  const [loginSubmitting, setLoginSubmitting] = useState(false);
 
-  const searchParams = useSearchParams();
+  const redirectParam = (() => {
+    try {
+      const raw = searchParams.get('redirectTo') || '';
+      if (raw) {
+        const decoded = decodeURIComponent(raw);
+        return decoded || '/';
+      }
+      let fallback = '/';
+      try {
+        const ref = typeof document !== 'undefined' ? document.referrer || '' : '';
+        if (ref && typeof window !== 'undefined') {
+          const u = new URL(ref);
+          if (u.origin === window.location.origin) {
+            fallback = `${u.pathname}${u.search}`;
+          }
+        }
+      } catch {}
+      if (fallback === '/') {
+        try {
+          const last = typeof window !== 'undefined' ? (localStorage.getItem('last_path') || '') : '';
+          if (last) fallback = last;
+        } catch {}
+      }
+      return fallback || '/';
+    } catch { return '/'; }
+  })();
 
   useEffect(() => {
     let active = true;
@@ -22,12 +53,12 @@ export default function AuthLoginPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!active) return;
       if (session) {
-        router.replace('/');
+        router.replace(redirectParam || '/');
       }
     })();
     const { data: sub } = (supabase as any).auth.onAuthStateChange((_event: any, s: any) => {
       if (s) {
-        router.replace('/');
+        router.replace(redirectParam || '/');
       }
     });
     return () => { active = false; try { sub?.subscription?.unsubscribe?.(); } catch {} };
@@ -35,10 +66,13 @@ export default function AuthLoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (loginSubmitting) return;
+    setLoginSubmitting(true);
     try { if (typeof window !== 'undefined') { localStorage.setItem('remember_me', rememberMe ? '1' : '0'); } } catch {}
     const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
     if (err) {
       setError(err.message || "Email atau password salah");
+      setLoginSubmitting(false);
       return;
     }
     if (typeof window !== 'undefined') {
@@ -55,23 +89,31 @@ export default function AuthLoginPage() {
         }
       } catch {}
     }
-    const redirectTo = '/';
+    const redirectTo = redirectParam || '/';
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         router.replace(redirectTo);
         return;
       }
-    } catch {}
+    } catch {} finally {
+      setLoginSubmitting(false);
+    }
     router.replace(redirectTo);
   };
   const handleGoogleLogin = async () => {
     try {
-      const redirectTo = '/';
+      const base = process.env.NEXT_PUBLIC_SUPABASE_REDIRECT_URL;
+      if (!base) {
+        setError('Konfigurasi redirect URL belum diset (NEXT_PUBLIC_SUPABASE_REDIRECT_URL)');
+        return;
+      }
+      const rto = encodeURIComponent(redirectParam || '/');
+      const redirectTo = `${base}/login?auth_flow=login&redirectTo=${rto}`;
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/` : undefined,
+          redirectTo,
         },
       });
     } catch (err) {
@@ -170,6 +212,12 @@ export default function AuthLoginPage() {
                     label={<Text style={{ fontSize: 14, color: "#111827" }}>Remember Me</Text>}
                     styles={{ input: { borderColor: "#d1d5db" }, label: { cursor: "pointer" } }}
                   />
+                  <Anchor
+                    onClick={() => { setCpOpen(true); setCpEmail(email || ""); setCpMessage(null); }}
+                    style={{ fontSize: 14, color: "#284361", cursor: "pointer" }}
+                  >
+                    Forgot Password?
+                  </Anchor>
                 </Group>
 
                 {/* Error Message */}
@@ -179,7 +227,7 @@ export default function AuthLoginPage() {
 
                 
                 {/* Login Button */}
-                <Button type="submit" fullWidth styles={{ root: { backgroundColor: "#284361", height: 44, fontWeight: 600 } }}>
+                <Button type="submit" fullWidth styles={{ root: { backgroundColor: "#284361", height: 44, fontWeight: 600 } }} loading={loginSubmitting}>
                   Login
                 </Button>
 
@@ -197,7 +245,7 @@ export default function AuthLoginPage() {
                 </Button>
                 <Text style={{ marginTop: 24, textAlign: "center", fontSize: 14, color: "#6b7280" }}>
                   Don&#39;t have an account? {" "}
-                  <Anchor href="/register" style={{ color: "#284361", fontWeight: 600 }}>Register Now</Anchor>
+                  <Anchor href={`/register?redirectTo=${encodeURIComponent(redirectParam || '/')}`} style={{ color: "#284361", fontWeight: 600 }}>Register Now</Anchor>
                 </Text>
               </Stack>
             </form>
@@ -209,6 +257,54 @@ export default function AuthLoginPage() {
           <Text style={{ marginTop: 32, textAlign: "center", fontSize: 12, color: "#6b7280" }}>
             © 2025 Caspla Bali. All rights reserved.
           </Text>
+          <Modal opened={cpOpen} onClose={() => { setCpOpen(false); setCpMessage(null); }} centered withCloseButton title="Reset Password">
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setCpMessage(null);
+              const normalizedEmail = (cpEmail || '').trim().toLowerCase().replace(/[\u200B-\u200D\uFEFF]/g, '');
+              const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+              if (!emailRegex.test(normalizedEmail)) {
+                setCpMessage(`Email address "${cpEmail}" is invalid`);
+                return;
+              }
+              try {
+                setCpSubmitting(true);
+                const base = process.env.NEXT_PUBLIC_SUPABASE_REDIRECT_URL;
+                if (!base) {
+                  setCpMessage('Konfigurasi redirect URL belum diset (NEXT_PUBLIC_SUPABASE_REDIRECT_URL)');
+                  return;
+                }
+                const next = encodeURIComponent('/reset-password');
+                const redirectTo = `${base}/auth/confirm?next=${next}`;
+                const { error } = await (supabase as any).auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
+                if (error) {
+                  setCpMessage(error.message || 'Gagal mengirim tautan reset');
+                } else {
+                  setCpMessage('Tautan reset password telah dikirim ke email Anda');
+                }
+              } catch (ex: any) {
+                setCpMessage(ex?.message || 'Terjadi kesalahan');
+              } finally {
+                setCpSubmitting(false);
+              }
+            }}>
+              <Stack gap={16}>
+                <TextInput
+                  type="email"
+                  value={cpEmail}
+                  onChange={(e) => setCpEmail(e.currentTarget.value)}
+                  placeholder="you@example.com"
+                  required
+                  styles={{ input: { padding: '12px 16px', border: '1px solid #d1d5db', borderRadius: 8 } }}
+                />
+                {cpMessage && <Text style={{ color: cpMessage.includes('dikirim') ? '#10b981' : '#ef4444' }}>{cpMessage}</Text>}
+                <Group justify="flex-end">
+                  <Button variant="light" onClick={() => { setCpOpen(false); setCpMessage(null); }} disabled={cpSubmitting}>Batal</Button>
+                  <Button type="submit" styles={{ root: { backgroundColor: '#284361' } }} disabled={cpSubmitting} loading={cpSubmitting}>{cpSubmitting ? 'Mengirim...' : 'Kirim tautan reset'}</Button>
+                </Group>
+              </Stack>
+            </form>
+          </Modal>
         </Box>
       </Box>
     </Box>

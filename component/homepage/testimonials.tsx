@@ -11,7 +11,8 @@ import {
   Group,
   Stack,
   ActionIcon,
-  Rating
+  Rating,
+  Loader
 } from '@mantine/core';
 import { Transition } from '@mantine/core';
 import { IconStar, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
@@ -19,6 +20,7 @@ type ReviewCard = { id: string; name: string; country: string; rating: number; t
 
 export function Testimonials() {
   const [reviews, setReviews] = useState<ReviewCard[]>([]);
+  const [loading, setLoading] = useState(true);
   const [offset, setOffset] = useState(0);
   const [mounted, setMounted] = useState(true);
   const [anim, setAnim] = useState<'slide-left' | 'slide-right'>('slide-right');
@@ -39,8 +41,13 @@ export function Testimonials() {
           text: String(r.text || ''),
           avatar: String(r.avatar || ''),
         })) : [];
-        if (mounted) setReviews(list);
-      } catch {}
+        if (mounted) {
+          setReviews(list);
+          setLoading(false);
+        }
+      } catch {
+        if (mounted) setLoading(false);
+      }
     })();
     return () => { mounted = false };
   }, []);
@@ -100,6 +107,11 @@ export function Testimonials() {
           </Group>
         </Group>
         
+        {loading ? (
+          <Box style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: isMobile ? 200 : 224 }}>
+            <Loader color="#284361" />
+          </Box>
+        ) : (
         <Transition mounted={mounted} transition={anim} duration={300} exitDuration={220} onExited={() => {
           if (pendingOffset.current != null) {
             setOffset(pendingOffset.current);
@@ -165,6 +177,7 @@ export function Testimonials() {
             </Box>
           )}
         </Transition>
+        )}
       </Container>
     </Box>
   );

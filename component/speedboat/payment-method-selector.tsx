@@ -13,10 +13,12 @@ interface PaymentMethodSelectorProps {
   cardExpiry?: string;
   cardCvn?: string;
   cardName?: string;
+  cardPhone?: string;
   onCardNumberChange?: (v: string) => void;
   onCardExpiryChange?: (v: string) => void;
   onCardCvnChange?: (v: string) => void;
   onCardNameChange?: (v: string) => void;
+  onCardPhoneChange?: (v: string) => void;
 }
 
 export function PaymentMethodSelector({
@@ -28,10 +30,12 @@ export function PaymentMethodSelector({
   cardExpiry,
   cardCvn,
   cardName,
+  cardPhone,
   onCardNumberChange,
   onCardExpiryChange,
   onCardCvnChange,
-  onCardNameChange
+  onCardNameChange,
+  onCardPhoneChange
 }: PaymentMethodSelectorProps) {
   return (
     <>
@@ -109,6 +113,7 @@ export function PaymentMethodSelector({
                     <TextInput label="CVV" placeholder="123" value={cardCvn} onChange={(e) => onCardCvnChange?.(e.currentTarget.value)} />
                   </Group>
                   <TextInput label="Name on Card" placeholder="Your name" value={cardName} onChange={(e) => onCardNameChange?.(e.currentTarget.value)} />
+                  <TextInput label="Phone (E.164 format)" placeholder="+6281234567890" value={cardPhone} onChange={(e) => onCardPhoneChange?.(e.currentTarget.value)} />
                 </Stack>
               </Box>
             </Collapse>
@@ -180,6 +185,7 @@ export function PaymentMethodSelector({
                     <TextInput label="CVV" placeholder="123" value={cardCvn} onChange={(e) => onCardCvnChange?.(e.currentTarget.value)} />
                   </Group>
                   <TextInput label="Name on Card" placeholder="Your name" value={cardName} onChange={(e) => onCardNameChange?.(e.currentTarget.value)} />
+                  <TextInput label="Phone (E.164 format)" placeholder="+6281234567890" value={cardPhone} onChange={(e) => onCardPhoneChange?.(e.currentTarget.value)} />
                 </Stack>
               </Box>
             </Collapse>

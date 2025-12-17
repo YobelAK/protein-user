@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Paper, Title, Grid, Select, TextInput, Checkbox, Text, Group, Stack, Box, Autocomplete } from '@mantine/core';
+import { Paper, Title, Grid, Select, TextInput, Checkbox, Text, Group, Stack, Box, Autocomplete, Loader } from '@mantine/core';
 import { IconChevronDown } from '@tabler/icons-react';
 import { supabase } from '@/lib/supabase/client';
 
@@ -22,9 +22,10 @@ interface PassengerFormProps {
   guestCount: number;
   onChange?: (passengers: Passenger[]) => void;
   mainContactName?: string;
+  initialCounts?: { adult: number; child: number; infant: number };
 }
 
-export function PassengerForm({ guestCount, onChange, mainContactName }: PassengerFormProps) {
+export function PassengerForm({ guestCount, onChange, mainContactName, initialCounts }: PassengerFormProps) {
   const createDefaultPassenger = (index: number): Passenger => ({
     id: index + 1,
     label: `Adult ${index + 1}`,
@@ -38,8 +39,62 @@ export function PassengerForm({ guestCount, onChange, mainContactName }: Passeng
     isMainContact: false
   });
 
-  const [passengers, setPassengers] = useState<Passenger[]>(Array.from({ length: Math.max(1, guestCount) }, (_, i) => createDefaultPassenger(i)));
+  const createInitialPassengers = (counts?: { adult: number; child: number; infant: number }): Passenger[] => {
+    const result: Passenger[] = [];
+    const a = Math.max(0, counts?.adult ?? 0);
+    const c = Math.max(0, counts?.child ?? 0);
+    const i = Math.max(0, counts?.infant ?? 0);
+    for (let idx = 0; idx < a; idx++) {
+      result.push({
+        id: result.length + 1,
+        label: `Adult ${idx + 1}`,
+        title: 'Mr',
+        firstName: '',
+        lastName: '',
+        nationality: 'Indonesia',
+        identityType: 'KTP',
+        idNumber: '',
+        ageCategory: 'Adult',
+        isMainContact: false,
+      });
+    }
+    for (let idx = 0; idx < c; idx++) {
+      result.push({
+        id: result.length + 1,
+        label: `Child ${idx + 1}`,
+        title: 'Mr',
+        firstName: '',
+        lastName: '',
+        nationality: 'Indonesia',
+        identityType: 'KTP',
+        idNumber: '',
+        ageCategory: 'Child',
+        isMainContact: false,
+      });
+    }
+    for (let idx = 0; idx < i; idx++) {
+      result.push({
+        id: result.length + 1,
+        label: `Infant ${idx + 1}`,
+        title: 'Mr',
+        firstName: '',
+        lastName: '',
+        nationality: 'Indonesia',
+        identityType: 'KTP',
+        idNumber: '',
+        ageCategory: 'Infant',
+        isMainContact: false,
+      });
+    }
+    if (result.length === 0) {
+      return Array.from({ length: Math.max(1, guestCount) }, (_, idx) => createDefaultPassenger(idx));
+    }
+    return result;
+  };
+
+  const [passengers, setPassengers] = useState<Passenger[]>(createInitialPassengers(initialCounts));
   const [savedTravelers, setSavedTravelers] = useState<Array<{ id?: string; title?: string; firstName: string; lastName: string; nationality: string; identityType?: string; idNumber?: string; nationalId?: string; ageCategory?: string; age?: number }>>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const count = Math.max(1, guestCount);
@@ -73,7 +128,17 @@ export function PassengerForm({ guestCount, onChange, mainContactName }: Passeng
   }, [mainContactName]);
 
   useEffect(() => {
+    setPassengers((prev) => {
+      const anyFilled = prev.some((p) => Boolean(p.firstName?.trim()) || Boolean(p.lastName?.trim()) || Boolean(p.idNumber?.trim()));
+      if (anyFilled) return prev;
+      const rebuilt = createInitialPassengers(initialCounts);
+      return rebuilt;
+    });
+  }, [initialCounts]);
+
+  useEffect(() => {
     const load = async () => {
+      setLoading(true);
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
@@ -105,6 +170,7 @@ export function PassengerForm({ guestCount, onChange, mainContactName }: Passeng
           setSavedTravelers([]);
         }
       } catch {}
+      setLoading(false);
     };
     load();
   }, []);
@@ -114,7 +180,12 @@ export function PassengerForm({ guestCount, onChange, mainContactName }: Passeng
   };
 
   return (
-    <Paper shadow="sm" p="xl" radius="lg" bg="white">
+    <Paper shadow="sm" p="xl" radius="lg" bg="white" style={{ position: 'relative' }}>
+      {loading && (
+        <Box style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.6)', zIndex: 10 }}>
+          <Loader color="#284361" />
+        </Box>
+      )}
       <Title order={2} size="lg" fw={600} c="#284361" mb="xl">
         Passenger Information
       </Title>
@@ -203,7 +274,7 @@ export function PassengerForm({ guestCount, onChange, mainContactName }: Passeng
                 value={passenger.lastName}
                 onChange={(e) => handleChange(passenger.id, 'lastName', e.currentTarget.value)}
                 size="sm"
-                required
+                // required
                 styles={{
                   input: {
                     fontSize: '14px',
@@ -222,7 +293,7 @@ export function PassengerForm({ guestCount, onChange, mainContactName }: Passeng
               <Grid.Col span={{ base: 12, md: 3 }}>
               <Select
                 label="Nationality"
-                data={["Indonesia", "Malaysia", "Singapore"]}
+                data={["Indonesia", "Malaysia", "Singapore", "Thailand", "Philippines"]}
                 value={passenger.nationality}
                 onChange={(value) => value && handleChange(passenger.id, 'nationality', value)}
                 size="sm"

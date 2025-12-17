@@ -15,7 +15,7 @@ import QRCode from 'qrcode';
 
 export default function PaymentPage() {
   const router = useRouter();
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('virtual-account');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
   const [promoCode, setPromoCode] = useState('');
   const [booking, setBooking] = useState<any>(null);
   const [bookings, setBookings] = useState<any[]>([]);
@@ -30,15 +30,73 @@ export default function PaymentPage() {
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvn, setCardCvn] = useState('');
   const [cardName, setCardName] = useState('');
+  const [cardPhone, setCardPhone] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [payLoadingMap, setPayLoadingMap] = useState<Record<number, boolean>>({});
+  const [payLoadingSingle, setPayLoadingSingle] = useState<boolean>(false);
+  const [refreshLoadingMap, setRefreshLoadingMap] = useState<Record<number, boolean>>({});
+  const [refreshLoadingSingle, setRefreshLoadingSingle] = useState<boolean>(false);
   const cardReady = (() => {
     if (selectedPaymentMethod !== 'credit-card') return true;
     return !!(cardNumber && cardExpiry && cardCvn && cardName);
   })();
   const timers = useRef<Record<number, ReturnType<typeof setInterval> | undefined>>({});
   const singleTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [readyRefreshMap, setReadyRefreshMap] = useState<Record<number, { xid?: string }>>({});
-  const [readyRefreshSingle, setReadyRefreshSingle] = useState<{ xid?: string } | null>(null);
+  const [readyRefreshMap, setReadyRefreshMap] = useState<Record<number, { xid?: string; method?: string }>>({});
+  const [readyRefreshSingle, setReadyRefreshSingle] = useState<{ xid?: string; method?: string } | null>(null);
+  const startQrisPollingMulti = async (idx: number, id: string) => {
+    if (timers.current[idx]) {
+      try { clearInterval(timers.current[idx]!); } catch {}
+    }
+    timers.current[idx] = setInterval(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        const uid = session.user.id;
+        const email = (session.user.email || '').trim().toLowerCase();
+        const byId = await fetch(`/api/bookings?id=${encodeURIComponent(id)}&userId=${encodeURIComponent(uid)}&email=${encodeURIComponent(email)}`, { cache: 'no-store' });
+        if (byId.ok) {
+          const json = await byId.json();
+          const updated = mapBooking(json.booking);
+          setBookings((prev) => {
+            const copy = [...prev];
+            copy[idx] = updated;
+            return copy;
+          });
+          const s = String(json?.booking?.status || '').toUpperCase();
+          if (s === 'PAID' || s === 'COMPLETED') {
+            try { clearInterval(timers.current[idx]!); } catch {}
+            router.push(`/speedboat/book/ticket?id=${encodeURIComponent(id)}`);
+          }
+        }
+      } catch {}
+    }, 2000);
+  };
+  const startQrisPollingSingle = async (id: string) => {
+    if (singleTimer.current) {
+      try { clearInterval(singleTimer.current); } catch {}
+    }
+    singleTimer.current = setInterval(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        const uid = session.user.id;
+        const email = (session.user.email || '').trim().toLowerCase();
+        const byId = await fetch(`/api/bookings?id=${encodeURIComponent(id)}&userId=${encodeURIComponent(uid)}&email=${encodeURIComponent(email)}`, { cache: 'no-store' });
+        if (byId.ok) {
+          const json = await byId.json();
+          setBooking(mapBooking(json.booking));
+          const s = String(json?.booking?.status || '').toUpperCase();
+          if (s === 'PAID' || s === 'COMPLETED') {
+            try { clearInterval(singleTimer.current!); } catch {}
+            const qs = new URLSearchParams();
+            qs.set('id', String(id));
+            router.push(`/speedboat/book/ticket?${qs.toString()}`);
+          }
+        }
+      } catch {}
+    }, 2000);
+  };
 
   const statusLabel = (b: any) => {
     const s = String(b?.status || '').toUpperCase();
@@ -176,7 +234,7 @@ export default function PaymentPage() {
           let code = '';
           try { code = typeof window !== 'undefined' ? localStorage.getItem('booking_code') || '' : ''; } catch {}
           if (code) {
-            const byCode = await fetch(`/api/bookings?code=${encodeURIComponent(code)}`, { cache: 'no-store' });
+            const byCode = await fetch(`/api/bookings?code=${encodeURIComponent(code)}&userId=${encodeURIComponent(uid)}&email=${encodeURIComponent(email)}`, { cache: 'no-store' });
             if (byCode.ok) {
               const json = await byCode.json();
               setBooking(mapBooking(json.booking));
@@ -208,32 +266,97 @@ export default function PaymentPage() {
     if (isProcessing) return;
     try {
       setIsProcessing(true);
+      let idx: number | undefined = undefined;
       if (bookings && bookings.length > 1) {
-        const idx = typeof index === 'number' ? index : 0;
-        const b = bookings[idx];
+        idx = typeof index === 'number' ? index : 0;
+        setPayLoadingMap((prev) => ({ ...prev, [idx!]: true }));
+      } else {
+        setPayLoadingSingle(true);
+      }
+      if (selectedPaymentMethod === 'qris') {
+        setVaMap({});
+        setVaSingle(null);
+        setReadyRefreshMap((prev) => {
+          const copy: Record<number, { xid?: string; method?: string }> = {};
+          Object.keys(prev).forEach((k) => {
+            const i = Number(k);
+            const v = prev[i];
+            if (v && v.method !== 'virtual-account') copy[i] = v;
+          });
+          return copy;
+        });
+        setReadyRefreshSingle((prev) => (prev && prev.method === 'virtual-account' ? null : prev));
+      } else if (selectedPaymentMethod === 'virtual-account') {
+        setQrMap({});
+        setQrSingle(null);
+        setReadyRefreshMap((prev) => {
+          const copy: Record<number, { xid?: string; method?: string }> = {};
+          Object.keys(prev).forEach((k) => {
+            const i = Number(k);
+            const v = prev[i];
+            if (v && v.method !== 'qris') copy[i] = v;
+          });
+          return copy;
+        });
+        setReadyRefreshSingle((prev) => (prev && prev.method === 'qris' ? null : prev));
+        Object.keys(timers.current).forEach((k) => {
+          const i = Number(k);
+          if (timers.current[i]) {
+            try { clearInterval(timers.current[i]!); } catch {}
+            timers.current[i] = undefined;
+          }
+        });
+        if (singleTimer.current) {
+          try { clearInterval(singleTimer.current); } catch {}
+          singleTimer.current = null;
+        }
+      } else {
+        setQrMap({});
+        setQrSingle(null);
+        setVaMap({});
+        setVaSingle(null);
+        setReadyRefreshMap({});
+        setReadyRefreshSingle(null);
+        Object.keys(timers.current).forEach((k) => {
+          const i = Number(k);
+          if (timers.current[i]) {
+            try { clearInterval(timers.current[i]!); } catch {}
+            timers.current[i] = undefined;
+          }
+        });
+        if (singleTimer.current) {
+          try { clearInterval(singleTimer.current); } catch {}
+          singleTimer.current = null;
+        }
+      }
+      if (bookings && bookings.length > 1) {
+        const b = bookings[idx!];
         const id = b?.id;
-        if (!id) return;
+        if (!id) { setPayLoadingMap((prev) => ({ ...prev, [idx!]: false })); return; }
         if (selectedPaymentMethod === 'qris') {
           const createRes = await fetch('/api/payments/qris/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: id }) });
-          if (!createRes.ok) return;
+          if (!createRes.ok) { setPayLoadingMap((prev) => ({ ...prev, [idx!]: false })); return; }
           const j = await createRes.json();
           try {
             const origin = typeof window !== 'undefined' ? window.location.origin : '';
             const dummyUrl = `${origin}/speedboat/book/payment/dummy-qris?code=${encodeURIComponent(b?.booking_code || '')}&xid=${encodeURIComponent(j?.xenditId || '')}`;
             const dataUrl = await QRCode.toDataURL(dummyUrl, { width: 256, margin: 1 });
-            setQrMap((prev) => ({ ...prev, [idx]: { qrString: dummyUrl, qrImageUrl: dataUrl } }));
+            setQrMap((prev) => ({ ...prev, [idx!]: { qrString: dummyUrl, qrImageUrl: dataUrl } }));
           } catch {
-            setQrMap((prev) => ({ ...prev, [idx]: { qrString: j?.qrString || '', qrImageUrl: j?.qrImageUrl || '' } }));
+            setQrMap((prev) => ({ ...prev, [idx!]: { qrString: j?.qrString || '', qrImageUrl: j?.qrImageUrl || '' } }));
           }
-          setReadyRefreshMap((prev) => ({ ...prev, [idx]: { xid: j?.xenditId || '' } }));
+          setReadyRefreshMap((prev) => ({ ...prev, [idx!]: { xid: j?.xenditId || '', method: 'qris' } }));
+          setPayLoadingMap((prev) => ({ ...prev, [idx!]: false }));
+          await startQrisPollingMulti(idx!, id);
           return;
         }
         if (selectedPaymentMethod === 'virtual-account') {
           const createRes = await fetch('/api/payments/va/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: id, bankCode: selectedVaBank }) });
-          if (!createRes.ok) return;
+          if (!createRes.ok) { setPayLoadingMap((prev) => ({ ...prev, [idx!]: false })); return; }
           const j = await createRes.json();
-          setVaMap((prev) => ({ ...prev, [idx]: { accountNumber: j?.accountNumber || '', bankCode: j?.bankCode || '' } }));
-          setReadyRefreshMap((prev) => ({ ...prev, [idx]: { xid: j?.xenditId || '' } }));
+          setVaMap((prev) => ({ ...prev, [idx!]: { accountNumber: j?.accountNumber || '', bankCode: j?.bankCode || '' } }));
+          setReadyRefreshMap((prev) => ({ ...prev, [idx!]: { xid: j?.xenditId || '', method: 'virtual-account' } }));
+          setPayLoadingMap((prev) => ({ ...prev, [idx!]: false }));
           return;
         }
         if (selectedPaymentMethod === 'credit-card') {
@@ -241,26 +364,59 @@ export default function PaymentPage() {
           const exp = String(cardExpiry || '').trim();
           const cvn = String(cardCvn || '').trim();
           const name = String(cardName || '').trim();
-          if (!/^\d{12,19}$/.test(num)) { window.alert('Nomor kartu harus angka 12–19 digit'); return; }
+          const phone = String(cardPhone || '').trim();
+          if (!/^\d{12,19}$/.test(num)) { window.alert('Nomor kartu harus angka 12–19 digit'); setPayLoadingMap((prev) => ({ ...prev, [idx!]: false })); return; }
           const parts = exp.split('/').map((s) => s.trim());
-          if (parts.length !== 2 || !/^\d{2}$/.test(parts[0]) || !/^\d{2}$/.test(parts[1])) { window.alert('Expiry harus format MM/YY'); return; }
+          if (parts.length !== 2 || !/^\d{2}$/.test(parts[0]) || !/^\d{2}$/.test(parts[1])) { window.alert('Expiry harus format MM/YY'); setPayLoadingMap((prev) => ({ ...prev, [idx!]: false })); return; }
           const mm = Number(parts[0]); const yy = Number(parts[1]);
-          if (mm < 1 || mm > 12) { window.alert('Bulan expiry tidak valid'); return; }
+          if (mm < 1 || mm > 12) { window.alert('Bulan expiry tidak valid'); setPayLoadingMap((prev) => ({ ...prev, [idx!]: false })); return; }
           const year = 2000 + yy;
           const now = new Date();
           const expDate = new Date(year, mm, 0, 23, 59, 59, 999);
-          if (expDate < now) { window.alert('Kartu sudah kedaluwarsa'); return; }
-          if (!/^\d{3,4}$/.test(cvn)) { window.alert('CVV harus 3–4 digit angka'); return; }
-          if (!name) { window.alert('Nama pemegang kartu wajib diisi'); return; }
-          const createRes = await fetch('/api/payments/card/create', {
-            method: 'POST',
+          if (expDate < now) { window.alert('Kartu sudah kedaluwarsa'); setPayLoadingMap((prev) => ({ ...prev, [idx!]: false })); return; }
+          if (!/^\d{3,4}$/.test(cvn)) { window.alert('CVV harus 3–4 digit angka'); setPayLoadingMap((prev) => ({ ...prev, [idx!]: false })); return; }
+          if (!name) { window.alert('Nama pemegang kartu wajib diisi'); setPayLoadingMap((prev) => ({ ...prev, [idx!]: false })); return; }
+          const paidAmount = b?.total_amount ?? b?.totalAmount ?? 0;
+          const pid = `pr_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+          const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+          await fetch('/api/bookings', {
+            method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bookingId: id, cardNumber: num, cardExpMonth: mm, cardExpYear: year, cardCvn: cvn, cardName: name }),
+            body: JSON.stringify({
+              action: 'pay',
+              id,
+              paymentMethod: 'CARD',
+              xenditPaymentChannel: 'CARDS',
+              xenditInvoiceId: pid,
+              invoiceExpiryDate: expiresAt,
+              paidAmount,
+            }),
           });
-          if (!createRes.ok) return;
-          const j = await createRes.json();
-          // if (j?.requiresAction && j?.redirectUrl) { try { window.open(String(j.redirectUrl), '_blank'); } catch {} }
-          setReadyRefreshMap((prev) => ({ ...prev, [idx]: { xid: j?.xenditId || '' } }));
+          // keep payLoading true until redirect
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+              const uid = session.user.id;
+              const email = (session.user.email || '').trim().toLowerCase();
+              const byId = await fetch(`/api/bookings?id=${encodeURIComponent(id)}&userId=${encodeURIComponent(uid)}&email=${encodeURIComponent(email)}`, { cache: 'no-store' });
+              if (byId.ok) {
+                const json = await byId.json();
+                const updated = mapBooking(json.booking);
+                setBookings((prev) => {
+                  const copy = [...prev];
+                  copy[idx!] = updated;
+                  return copy;
+                });
+              }
+            }
+          } catch {}
+          const allPaid = (arr: any[]) => arr.every((bb: any) => String(bb?.status || '').toUpperCase() === 'PAID' || String(bb?.status || '').toUpperCase() === 'COMPLETED');
+          const shouldRedirect = allPaid((Array.isArray(bookings) ? bookings : []).map((bb, i) => (i === idx ? { ...bb, status: 'PAID' } : bb)));
+          if (shouldRedirect) {
+            router.push('/profile/my-bookings');
+            return;
+          }
+          setPayLoadingMap((prev) => ({ ...prev, [idx!]: false }));
           return;
         }
         const paidAmount = b?.total_amount ?? b?.totalAmount ?? 0;
@@ -280,7 +436,7 @@ export default function PaymentPage() {
               const updated = mapBooking(json.booking);
               setBookings((prev) => {
                 const copy = [...prev];
-                copy[idx] = updated;
+                copy[idx!] = updated;
                 return copy;
               });
             }
@@ -292,13 +448,14 @@ export default function PaymentPage() {
           router.push('/profile/my-bookings');
           return;
         }
+        setPayLoadingMap((prev) => ({ ...prev, [idx!]: false }));
         return;
       }
       const id = booking?.id;
-      if (!id) return;
+      if (!id) { setPayLoadingSingle(false); return; }
       if (selectedPaymentMethod === 'qris') {
         const createRes = await fetch('/api/payments/qris/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: id }) });
-        if (!createRes.ok) return;
+        if (!createRes.ok) { setPayLoadingSingle(false); return; }
         const j = await createRes.json();
         try {
           const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -308,15 +465,18 @@ export default function PaymentPage() {
         } catch {
           setQrSingle({ qrString: j?.qrString || '', qrImageUrl: j?.qrImageUrl || '' });
         }
-        setReadyRefreshSingle({ xid: j?.xenditId || '' });
+        setReadyRefreshSingle({ xid: j?.xenditId || '', method: 'qris' });
+        setPayLoadingSingle(false);
+        await startQrisPollingSingle(id);
         return;
       }
       if (selectedPaymentMethod === 'virtual-account') {
         const createRes = await fetch('/api/payments/va/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: id, bankCode: selectedVaBank }) });
-        if (!createRes.ok) return;
+        if (!createRes.ok) { setPayLoadingSingle(false); return; }
         const j = await createRes.json();
         setVaSingle({ accountNumber: j?.accountNumber || '', bankCode: j?.bankCode || '' });
-        setReadyRefreshSingle({ xid: j?.xenditId || '' });
+        setReadyRefreshSingle({ xid: j?.xenditId || '', method: 'virtual-account' });
+        setPayLoadingSingle(false);
         return;
       }
       if (selectedPaymentMethod === 'credit-card') {
@@ -324,26 +484,38 @@ export default function PaymentPage() {
         const exp = String(cardExpiry || '').trim();
         const cvn = String(cardCvn || '').trim();
         const name = String(cardName || '').trim();
-        if (!/^\d{12,19}$/.test(num)) { window.alert('Nomor kartu harus angka 12–19 digit'); return; }
+        const phone = String(cardPhone || '').trim();
+        if (!/^\d{12,19}$/.test(num)) { window.alert('Nomor kartu harus angka 12–19 digit'); setPayLoadingSingle(false); return; }
         const parts = exp.split('/').map((s) => s.trim());
-        if (parts.length !== 2 || !/^\d{2}$/.test(parts[0]) || !/^\d{2}$/.test(parts[1])) { window.alert('Expiry harus format MM/YY'); return; }
+        if (parts.length !== 2 || !/^\d{2}$/.test(parts[0]) || !/^\d{2}$/.test(parts[1])) { window.alert('Expiry harus format MM/YY'); setPayLoadingSingle(false); return; }
         const mm = Number(parts[0]); const yy = Number(parts[1]);
-        if (mm < 1 || mm > 12) { window.alert('Bulan expiry tidak valid'); return; }
+        if (mm < 1 || mm > 12) { window.alert('Bulan expiry tidak valid'); setPayLoadingSingle(false); return; }
         const year = 2000 + yy;
         const now = new Date();
         const expDate = new Date(year, mm, 0, 23, 59, 59, 999);
-        if (expDate < now) { window.alert('Kartu sudah kedaluwarsa'); return; }
-        if (!/^\d{3,4}$/.test(cvn)) { window.alert('CVV harus 3–4 digit angka'); return; }
-        if (!name) { window.alert('Nama pemegang kartu wajib diisi'); return; }
-        const createRes = await fetch('/api/payments/card/create', {
-          method: 'POST',
+        if (expDate < now) { window.alert('Kartu sudah kedaluwarsa'); setPayLoadingSingle(false); return; }
+        if (!/^\d{3,4}$/.test(cvn)) { window.alert('CVV harus 3–4 digit angka'); setPayLoadingSingle(false); return; }
+        if (!name) { window.alert('Nama pemegang kartu wajib diisi'); setPayLoadingSingle(false); return; }
+        const paidAmount = booking?.total_amount ?? booking?.totalAmount ?? 0;
+        const pid = `pr_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+        const res = await fetch('/api/bookings', {
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bookingId: id, cardNumber: num, cardExpMonth: mm, cardExpYear: year, cardCvn: cvn, cardName: name }),
+          body: JSON.stringify({
+            action: 'pay',
+            id,
+            paymentMethod: 'CARD',
+            xenditPaymentChannel: 'CARDS',
+            xenditInvoiceId: pid,
+            invoiceExpiryDate: expiresAt,
+            paidAmount,
+          }),
         });
-        if (!createRes.ok) return;
-        const j = await createRes.json();
-        // if (j?.requiresAction && j?.redirectUrl) { try { window.open(String(j.redirectUrl), '_blank'); } catch {} }
-        setReadyRefreshSingle({ xid: j?.xenditId || '' });
+        if (!res.ok) return;
+        const qs = new URLSearchParams();
+        qs.set('id', String(id));
+        router.push(`/speedboat/book/ticket?${qs.toString()}`);
         return;
       }
       const paidAmount = booking?.total_amount ?? booking?.totalAmount ?? 0;
@@ -359,6 +531,16 @@ export default function PaymentPage() {
     } catch {}
     finally {
       setIsProcessing(false);
+      if (bookings && bookings.length > 1) {
+        const idxLocal = typeof index === 'number' ? index : 0;
+        if (selectedPaymentMethod !== 'credit-card') {
+          setPayLoadingMap((prev) => ({ ...prev, [idxLocal]: false }));
+        }
+      } else {
+        if (selectedPaymentMethod !== 'credit-card') {
+          setPayLoadingSingle(false);
+        }
+      }
     }
   };
 
@@ -367,9 +549,10 @@ export default function PaymentPage() {
       const b = bookings[idx];
       const id = b?.id;
       if (!id) return;
+      setRefreshLoadingMap((prev) => ({ ...prev, [idx]: true }));
       const paidAmount = b?.total_amount ?? b?.totalAmount ?? 0;
       const xid = (readyRefreshMap[idx] || {}).xid || undefined;
-      const channel = selectedPaymentMethod === 'virtual-account' ? ((vaMap[idx] || {}).bankCode || 'VA') : (selectedPaymentMethod === 'credit-card' ? 'CREDIT_CARD' : 'QRIS');
+      const channel = selectedPaymentMethod === 'virtual-account' ? ((vaMap[idx] || {}).bankCode || 'VA') : (selectedPaymentMethod === 'credit-card' ? 'CARDS' : 'QRIS');
       await fetch('/api/bookings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -388,15 +571,19 @@ export default function PaymentPage() {
         router.push('/profile/my-bookings');
       }
     } catch {}
+    finally {
+      setRefreshLoadingMap((prev) => ({ ...prev, [idx]: false }));
+    }
   };
 
   const refreshPaidSingle = async () => {
     try {
       const id = booking?.id;
       if (!id) return;
+      setRefreshLoadingSingle(true);
       const paidAmount = booking?.total_amount ?? booking?.totalAmount ?? 0;
       const xid = readyRefreshSingle?.xid || undefined;
-      const channel = selectedPaymentMethod === 'virtual-account' ? (vaSingle?.bankCode || 'VA') : (selectedPaymentMethod === 'credit-card' ? 'CREDIT_CARD' : 'QRIS');
+      const channel = selectedPaymentMethod === 'virtual-account' ? (vaSingle?.bankCode || 'VA') : (selectedPaymentMethod === 'credit-card' ? 'CARDS' : 'QRIS');
       const res = await fetch('/api/bookings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -414,6 +601,9 @@ export default function PaymentPage() {
       qs.set('id', String(id));
       router.push(`/speedboat/book/ticket?${qs.toString()}`);
     } catch {}
+    finally {
+      setRefreshLoadingSingle(false);
+    }
   };
 
   const handleExpire = async () => {
@@ -460,15 +650,17 @@ export default function PaymentPage() {
             {/* Left Column - Booking Review */}
             <Grid.Col span={{ base: 12, lg: 8 }}>
               <Stack gap="xl">
-                {bookings && bookings.length > 0 ? (
-                  bookings.map((b, idx) => (
-                    <BookingReview key={String(b?.id || idx)} promoCode={promoCode} setPromoCode={setPromoCode} booking={b} />
-                  ))
+                {bookings && bookings.length > 1 ? (
+                  <BookingReview 
+                    promoCode={promoCode}
+                    setPromoCode={setPromoCode}
+                    bookings={bookings}
+                  />
                 ) : (
                   <BookingReview 
                     promoCode={promoCode}
                     setPromoCode={setPromoCode}
-                    booking={booking}
+                    booking={booking || (Array.isArray(bookings) && bookings.length ? bookings[0] : undefined)}
                   />
                 )}
                 
@@ -481,10 +673,12 @@ export default function PaymentPage() {
                   cardExpiry={cardExpiry}
                   cardCvn={cardCvn}
                   cardName={cardName}
+                  cardPhone={cardPhone}
                   onCardNumberChange={setCardNumber}
                   onCardExpiryChange={setCardExpiry}
                   onCardCvnChange={setCardCvn}
                   onCardNameChange={setCardName}
+                  onCardPhoneChange={setCardPhone}
                 />
                 
               </Stack>
@@ -513,12 +707,14 @@ export default function PaymentPage() {
                               title="Payment Summary - Departure Ticket"
                               noWrapper
                               onExpire={handleExpire}
-                              qrString={(qrMap[0] || {}).qrString}
-                              qrImageUrl={(qrMap[0] || {}).qrImageUrl}
-                              vaNumber={(vaMap[0] || {}).accountNumber}
-                              vaBankCode={(vaMap[0] || {}).bankCode}
+                              qrString={selectedPaymentMethod === 'qris' ? (qrMap[0] || {}).qrString : undefined}
+                              qrImageUrl={selectedPaymentMethod === 'qris' ? (qrMap[0] || {}).qrImageUrl : undefined}
+                              vaNumber={selectedPaymentMethod === 'virtual-account' ? (vaMap[0] || {}).accountNumber : undefined}
+                              vaBankCode={selectedPaymentMethod === 'virtual-account' ? (vaMap[0] || {}).bankCode : undefined}
                               disabled={(!cardReady && selectedPaymentMethod === 'credit-card') || isProcessing}
-                              onRefresh={readyRefreshMap[0] ? () => refreshPaidMulti(0) : undefined}
+                              onRefresh={(selectedPaymentMethod === 'qris') ? undefined : ((readyRefreshMap[0] && readyRefreshMap[0].method === selectedPaymentMethod) ? () => refreshPaidMulti(0) : undefined)}
+                              payLoading={!!payLoadingMap[0]}
+                              refreshLoading={!!refreshLoadingMap[0]}
                             />
                           </Box>
                         </Collapse>
@@ -542,12 +738,14 @@ export default function PaymentPage() {
                               title="Payment Summary - Return Ticket"
                               noWrapper
                               onExpire={handleExpire}
-                              qrString={(qrMap[1] || {}).qrString}
-                              qrImageUrl={(qrMap[1] || {}).qrImageUrl}
-                              vaNumber={(vaMap[1] || {}).accountNumber}
-                              vaBankCode={(vaMap[1] || {}).bankCode}
+                              qrString={selectedPaymentMethod === 'qris' ? (qrMap[1] || {}).qrString : undefined}
+                              qrImageUrl={selectedPaymentMethod === 'qris' ? (qrMap[1] || {}).qrImageUrl : undefined}
+                              vaNumber={selectedPaymentMethod === 'virtual-account' ? (vaMap[1] || {}).accountNumber : undefined}
+                              vaBankCode={selectedPaymentMethod === 'virtual-account' ? (vaMap[1] || {}).bankCode : undefined}
                               disabled={(!cardReady && selectedPaymentMethod === 'credit-card') || isProcessing}
-                              onRefresh={readyRefreshMap[1] ? () => refreshPaidMulti(1) : undefined}
+                              onRefresh={(selectedPaymentMethod === 'qris') ? undefined : ((readyRefreshMap[1] && readyRefreshMap[1].method === selectedPaymentMethod) ? () => refreshPaidMulti(1) : undefined)}
+                              payLoading={!!payLoadingMap[1]}
+                              refreshLoading={!!refreshLoadingMap[1]}
                             />
                           </Box>
                         </Collapse>
@@ -560,12 +758,14 @@ export default function PaymentPage() {
                     buttonText="Pay Now"
                     booking={booking}
                     onExpire={handleExpire}
-                    qrString={(qrSingle || {}).qrString}
-                    qrImageUrl={(qrSingle || {}).qrImageUrl}
-                    vaNumber={(vaSingle || {}).accountNumber}
-                    vaBankCode={(vaSingle || {}).bankCode}
+                    qrString={selectedPaymentMethod === 'qris' ? (qrSingle || {}).qrString : undefined}
+                    qrImageUrl={selectedPaymentMethod === 'qris' ? (qrSingle || {}).qrImageUrl : undefined}
+                    vaNumber={selectedPaymentMethod === 'virtual-account' ? (vaSingle || {}).accountNumber : undefined}
+                    vaBankCode={selectedPaymentMethod === 'virtual-account' ? (vaSingle || {}).bankCode : undefined}
                     disabled={(!cardReady && selectedPaymentMethod === 'credit-card') || isProcessing}
-                    onRefresh={readyRefreshSingle ? refreshPaidSingle : undefined}
+                    onRefresh={(selectedPaymentMethod === 'qris') ? undefined : ((readyRefreshSingle && readyRefreshSingle.method === selectedPaymentMethod) ? refreshPaidSingle : undefined)}
+                    payLoading={payLoadingSingle}
+                    refreshLoading={refreshLoadingSingle}
                   />
                 )}
               </Box>

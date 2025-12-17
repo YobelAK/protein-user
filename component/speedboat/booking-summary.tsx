@@ -47,6 +47,7 @@ interface BookingSummaryProps {
   buttonText?: string;
   continueDisabled?: boolean;
   onContinue?: () => void;
+  continueLoading?: boolean;
 }
 
 export function BookingSummary({
@@ -70,6 +71,7 @@ export function BookingSummary({
   buttonText,
   continueDisabled,
   onContinue,
+  continueLoading,
 }: BookingSummaryProps) {
   const addOnsTotal = addOns.reduce((total, addOn) => total + addOn.price, 0);
   const totalPrice = passengerSubtotal + portFee + addOnsTotal;
@@ -465,6 +467,7 @@ export function BookingSummary({
                   }
                 }}
                 disabled={!!continueDisabled}
+                loading={!!continueLoading}
               >
                 {buttonText || nextStepLabel}
               </Button>
@@ -484,6 +487,7 @@ export function BookingSummary({
                     }
                   }}
                   disabled={!!continueDisabled}
+                  loading={!!continueLoading}
                 >
                   {buttonText || nextStepLabel}
                 </Button>

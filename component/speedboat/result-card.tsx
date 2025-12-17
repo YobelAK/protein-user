@@ -15,6 +15,7 @@ import {
   Collapse
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { supabase } from '@/lib/supabase/client';
 
 export interface ResultCardProps {
   id?: string | number;
@@ -68,7 +69,7 @@ export function ResultCard({
   const logoSrc = logo && String(logo).trim() ? logo : 'https://via.placeholder.com/60';
   const [openedPricing, { toggle: togglePricing }] = useDisclosure(false);
 
-  const handleBookClick = () => {
+  const handleBookClick = async () => {
     try {
       const search = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
       const ret = search.get('return') || '';
@@ -81,7 +82,51 @@ export function ResultCard({
       if (!hasReturn) {
         try { localStorage.removeItem('rt_outbound_selected'); } catch {}
         try { localStorage.removeItem('rt_passengers'); } catch {}
-        window.location.href = href;
+        try {
+          let a = 0, c = 0, i = 0;
+          try {
+            const raw = typeof window !== 'undefined' ? (localStorage.getItem('rt_passenger_counts') || '') : '';
+            if (raw) {
+              const obj = JSON.parse(raw);
+              a = Math.max(0, Number(obj?.adult ?? 0));
+              c = Math.max(0, Number(obj?.child ?? 0));
+              i = Math.max(0, Number(obj?.infant ?? 0));
+            }
+          } catch {}
+          const totalStr = search.get('passengers') ?? '';
+          const total = Number(totalStr);
+          if (!(a || c || i)) {
+            const t = Number.isFinite(total) && total > 0 ? total : (requestedPassengers ?? 1);
+            a = Math.max(1, Number(t) || 1);
+            c = 0;
+            i = 0;
+          }
+          const direct = new URLSearchParams();
+          direct.set('sid', String(id ?? ''));
+          direct.set('origin', origin);
+          direct.set('destination', destination);
+          direct.set('departureTime', departureTime);
+          direct.set('departureDate', String(departureDate ?? ''));
+          direct.set('provider', provider);
+          direct.set('priceIdr', String(priceIdr));
+          direct.set('adult', String(a));
+          direct.set('child', String(c));
+          direct.set('infant', String(i));
+          const target = `/speedboat/book?${direct.toString()}`;
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            window.location.href = `/login?redirectTo=${encodeURIComponent(target)}`;
+          } else {
+            window.location.href = target;
+          }
+        } catch {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            window.location.href = `/login?redirectTo=${encodeURIComponent(href)}`;
+          } else {
+            window.location.href = href;
+          }
+        }
         return;
       }
 
@@ -130,6 +175,7 @@ export function ResultCard({
       };
       try { localStorage.setItem('rt_outbound_selected', JSON.stringify(outbound)); } catch {}
       try { localStorage.setItem('rt_passengers', String(passengers)); } catch {}
+      try { if (typeof window !== 'undefined') { sessionStorage.setItem('rt_popup_outbound_pending', '1'); } } catch {}
       const params = new URLSearchParams();
       if (toId) params.set('from', toId);
       if (fromId) params.set('to', fromId);

@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import { Box, Group, Table, Text, Stack, SimpleGrid, Paper } from '@mantine/core';
+import { Box, Group, Table, Text, Stack, SimpleGrid, Paper, Loader } from '@mantine/core';
 import { Edit2, Trash2 } from 'lucide-react';
 import { useMediaQuery } from '@mantine/hooks';
 
@@ -20,9 +20,10 @@ type Props = {
   travelers: Traveler[];
   onEdit?: (traveler: Traveler, index: number) => void;
   onDelete?: (traveler: Traveler, index: number) => void;
+  loading?: boolean;
 };
 
-export function SavedTravelersTable({ travelers, onEdit, onDelete }: Props) {
+export function SavedTravelersTable({ travelers, onEdit, onDelete, loading }: Props) {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const headerStyle = { backgroundColor: '#e8f1f5' } as React.CSSProperties;
   const thStyle = {
@@ -47,8 +48,14 @@ export function SavedTravelersTable({ travelers, onEdit, onDelete }: Props) {
         borderRadius: 12,
         overflow: 'hidden',
         boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+        position: 'relative',
       }}
     >
+      {loading && (
+        <Box style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.6)', zIndex: 10 }}>
+          <Loader color="#284361" />
+        </Box>
+      )}
       {isMobile ? (
         <Stack gap="sm" p="md">
           {travelers.map((traveler, index) => (

@@ -14,11 +14,42 @@ export default function ResetPasswordPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    const check = async () => {
+    const init = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        setReady(!!session);
         if (!session) {
+          let code = '';
+          let accessToken = '';
+          let refreshToken = '';
+          try {
+            const loc = typeof window !== 'undefined' ? window.location : null;
+            if (loc) {
+              const qs = new URLSearchParams(loc.search || '');
+              const hs = new URLSearchParams((loc.hash || '').startsWith('#') ? (loc.hash || '').slice(1) : (loc.hash || ''));
+              code = qs.get('code') || hs.get('code') || '';
+              accessToken = qs.get('access_token') || hs.get('access_token') || '';
+              refreshToken = qs.get('refresh_token') || hs.get('refresh_token') || '';
+            }
+          } catch {}
+          if (code && typeof (supabase as any)?.auth?.exchangeCodeForSession === 'function') {
+            const { error } = await (supabase as any).auth.exchangeCodeForSession(code);
+            if (error) {
+              setReady(false);
+              setMessage('Tautan reset tidak valid atau sudah kedaluwarsa.');
+              return;
+            }
+          } else if (accessToken && refreshToken && typeof (supabase as any)?.auth?.setSession === 'function') {
+            const { error } = await (supabase as any).auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+            if (error) {
+              setReady(false);
+              setMessage('Tautan reset tidak valid atau sudah kedaluwarsa.');
+              return;
+            }
+          }
+        }
+        const { data: { session: s2 } } = await (supabase as any).auth.getSession();
+        setReady(!!s2);
+        if (!s2) {
           setMessage('Link reset tidak valid atau sudah kedaluwarsa.');
         }
       } catch {
@@ -26,7 +57,7 @@ export default function ResetPasswordPage() {
         setMessage('Terjadi kesalahan saat memproses tautan reset.');
       }
     };
-    check();
+    init();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -68,7 +99,7 @@ export default function ResetPasswordPage() {
               <TextInput type="password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} placeholder="Password baru" required />
               <TextInput type="password" value={confirm} onChange={(e) => setConfirm(e.currentTarget.value)} placeholder="Konfirmasi password" required />
               {message && <Text style={{ color: message.includes('berhasil') ? '#10b981' : '#ef4444' }}>{message}</Text>}
-              <Button type="submit" styles={{ root: { backgroundColor: '#284361' } }} disabled={!ready || submitting}>{submitting ? 'Menyimpan...' : 'Simpan password'}</Button>
+              <Button type="submit" styles={{ root: { backgroundColor: '#284361' } }} disabled={!ready || submitting} loading={submitting}>{submitting ? 'Menyimpan...' : 'Simpan password'}</Button>
             </Stack>
           </form>
         </Stack>
@@ -76,4 +107,3 @@ export default function ResetPasswordPage() {
     </Box>
   );
 }
-

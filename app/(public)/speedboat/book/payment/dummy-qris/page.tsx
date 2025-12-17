@@ -1,27 +1,39 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Container, Box, Stack, Title, Text, Group, Button, Paper, Alert } from '@mantine/core';
+import { Container, Box, Stack, Title, Text, Group, Button, Paper, Alert, Loader } from '@mantine/core';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
+import { supabase } from '@/lib/supabase/client';
 
 export default function DummyQrisPage() {
   const [booking, setBooking] = useState<any | null>(null);
   const [status, setStatus] = useState<'idle' | 'paid' | 'error'>('idle');
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
+        setFetching(true);
         const search = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
         const code = search.get('code') || '';
         if (!code) return;
-        const res = await fetch(`/api/bookings?code=${encodeURIComponent(code)}`, { cache: 'no-store' });
+        const { data: { session } } = await supabase.auth.getSession();
+        const uid = session?.user?.id || '';
+        const email = (session?.user?.email || '').trim().toLowerCase();
+        const qs = new URLSearchParams();
+        qs.set('code', code);
+        if (uid) qs.set('userId', uid);
+        if (email) qs.set('email', email);
+        const res = await fetch(`/api/bookings?${qs.toString()}`, { cache: 'no-store' });
         if (res.ok) {
           const j = await res.json();
           setBooking(j?.booking || null);
         }
-      } catch {}
+      } catch {} finally {
+        setFetching(false);
+      }
     };
     load();
   }, []);
@@ -63,7 +75,12 @@ export default function DummyQrisPage() {
 
       <Box component="main">
         <Container size="sm" py="xl">
-          <Paper shadow="sm" radius="lg" p="xl" bg="white">
+          <Paper shadow="sm" radius="lg" p="xl" bg="white" style={{ position: 'relative' }}>
+            {fetching && (
+              <Box style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.6)', zIndex: 10 }}>
+                <Loader color="#284361" />
+              </Box>
+            )}
             <Stack gap="md">
               <Title order={1} size="xl" fw={700} c="#284361">QRIS Payment (Dummy)</Title>
               <Text c="dimmed">Halaman ini hanya untuk keperluan uji coba. Tekan Pay untuk menyelesaikan pembayaran secara simulasi.</Text>
@@ -92,9 +109,10 @@ export default function DummyQrisPage() {
                       onClick={handlePay}
                       size="lg"
                       style={{ backgroundColor: '#2dbe8d', fontWeight: 600 }}
+                      loading={loading}
                       disabled={loading}
                     >
-                      {loading ? 'Processing...' : 'Pay'}
+                      Pay
                     </Button>
                   )}
                   {status === 'paid' && (
@@ -124,4 +142,3 @@ export default function DummyQrisPage() {
     </Box>
   );
 }
-
