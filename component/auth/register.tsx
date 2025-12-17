@@ -138,6 +138,7 @@ export default function AuthRegisterPage() {
         provider: 'google',
         options: {
           redirectTo,
+          queryParams: { prompt: 'select_account' },
         },
       });
     } catch (err) {

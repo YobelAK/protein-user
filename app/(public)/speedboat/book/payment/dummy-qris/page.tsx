@@ -16,19 +16,20 @@ export default function DummyQrisPage() {
     const load = async () => {
       try {
         setFetching(true);
-        const search = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
-        const code = search.get('code') || '';
-        if (!code) return;
-        const { data: { session } } = await supabase.auth.getSession();
-        const uid = session?.user?.id || '';
-        const email = (session?.user?.email || '').trim().toLowerCase();
-        const qs = new URLSearchParams();
-        qs.set('code', code);
-        if (uid) qs.set('userId', uid);
-        if (email) qs.set('email', email);
-        const res = await fetch(`/api/bookings?${qs.toString()}`, { cache: 'no-store' });
-        if (res.ok) {
-          const j = await res.json();
+      const search = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+      const code = search.get('code') || '';
+      if (!code) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      const uid = session?.user?.id || '';
+      const email = (session?.user?.email || '').trim().toLowerCase();
+      const qs = new URLSearchParams();
+      qs.set('code', code);
+      qs.set('simulate', 'true');
+      if (uid) qs.set('userId', uid);
+      if (email) qs.set('email', email);
+      const res = await fetch(`/api/bookings?${qs.toString()}`, { cache: 'no-store' });
+      if (res.ok) {
+        const j = await res.json();
           setBooking(j?.booking || null);
         }
       } catch {} finally {
@@ -55,6 +56,7 @@ export default function DummyQrisPage() {
           xenditPaymentChannel: 'QRIS',
           xenditInvoiceId: xid,
           paidAmount,
+          simulate: true,
         }),
       });
       if (!res.ok) {
@@ -84,8 +86,8 @@ export default function DummyQrisPage() {
               </Box>
             )}
             <Stack gap="md">
-              <Title order={1} size="xl" fw={700} c="#284361">QRIS Payment (Dummy)</Title>
-              <Text c="dimmed">Halaman ini hanya untuk keperluan uji coba. Tekan Pay untuk menyelesaikan pembayaran secara simulasi.</Text>
+              <Title order={1} size="xl" fw={700} c="#284361">QRIS Payment</Title>
+              <Text c="dimmed">Scan the QR code below to pay using QRIS.</Text>
 
               {booking ? (
                 <Stack gap="md">
@@ -120,7 +122,7 @@ export default function DummyQrisPage() {
                   {status === 'paid' && (
                     <Alert color="green" variant="light">
                       <Text fw={600} c="#166534">Payment marked as PAID.</Text>
-                      <Text c="dark">Kembali ke halaman Payment, tekan Refresh Payment untuk update status dan redirect.</Text>
+                      
                     </Alert>
                   )}
                   {status === 'error' && (

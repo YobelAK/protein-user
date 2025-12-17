@@ -555,6 +555,10 @@ export async function PUT(request: Request) {
     const id = String(body?.id || '');
     const code = String(body?.code || '');
     const action = String(body?.action || '').toLowerCase();
+    const simulateFlag = String(body?.simulate || '').toLowerCase();
+    const isSimulate = simulateFlag === 'true';
+    const isDev = (process.env.NODE_ENV || '').toLowerCase() !== 'production';
+    const simulateEnabled = isDev || String(process.env.SIMULATE_PUBLIC_PAY || '').toLowerCase() === 'true';
     const paymentMethod = body?.paymentMethod as string | undefined;
     const paidAmount = body?.paidAmount as number | string | undefined;
     const xenditInvoiceId = body?.xenditInvoiceId as string | undefined;
@@ -590,7 +594,7 @@ export async function PUT(request: Request) {
         } catch {}
       }
     }
-    if (!user) {
+    if (!user && !(isSimulate && simulateEnabled && action === 'pay')) {
       return NextResponse.json({ error: 'Login required' }, { status: 401 });
     }
 
@@ -599,7 +603,7 @@ export async function PUT(request: Request) {
       if (!existing) {
         return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
       }
-      const userEmail = String(user.email || '').trim().toLowerCase();
+      const userEmail = String(user?.email || '').trim().toLowerCase();
       let publicUserId: string | null = null;
       if (userEmail) {
         try {
@@ -608,12 +612,23 @@ export async function PUT(request: Request) {
         } catch {}
       }
       const isOwner = (
-        existing.customerId === user.id ||
+        (!!user && existing.customerId === user.id) ||
         (publicUserId && existing.customerId === publicUserId) ||
         (userEmail && ((existing as any)?.customerEmail || '').trim().toLowerCase() === userEmail)
       );
-      if (!isOwner) {
+      const simulateAllowed = isSimulate && simulateEnabled;
+      if (!isOwner && !simulateAllowed) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      if (simulateAllowed) {
+        if (existing.status !== 'PENDING') {
+          return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+        }
+        const expected = Number((existing as any)?.totalAmount ?? (existing as any)?.total_amount ?? 0);
+        const amt = Number(paidAmount ?? 0);
+        if (!Number.isFinite(expected) || !Number.isFinite(amt) || amt !== expected) {
+          return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
+        }
       }
       if (existing.status === 'PAID' || existing.status === 'COMPLETED') {
         const updated = await prisma.booking.update({
@@ -915,6 +930,10 @@ export async function GET(request: Request) {
   const id = urlObj.searchParams.get('id') || '';
   const userId = urlObj.searchParams.get('userId') || '';
   const email = urlObj.searchParams.get('email') || '';
+  const simulateQ = (urlObj.searchParams.get('simulate') || '').toLowerCase();
+  const isSimulate = simulateQ === 'true';
+  const isDev = (process.env.NODE_ENV || '').toLowerCase() !== 'production';
+  const simulateEnabled = isDev || String(process.env.SIMULATE_PUBLIC_PAY || '').toLowerCase() === 'true';
   const reviewOf = urlObj.searchParams.get('reviewOf') || '';
   const topReviews = urlObj.searchParams.get('topReviews') || '';
   const topFastboatRoutes = urlObj.searchParams.get('topFastboatRoutes') || '';
@@ -1065,9 +1084,9 @@ export async function GET(request: Request) {
 
   if (id) {
     const prisma = db;
-  let b = await prisma.booking.findUnique({
-    where: { id },
-    include: {
+    let b = await prisma.booking.findUnique({
+      where: { id },
+      include: {
       items: {
         include: {
           product: {
@@ -1098,7 +1117,7 @@ export async function GET(request: Request) {
     const allowed = (!!userId && b.customerId === userId)
       || (emailLower && ((b as any)?.customerEmail || '').trim().toLowerCase() === emailLower)
       || (!!publicUserId && b.customerId === publicUserId);
-    if (!allowed) {
+    if (!allowed && !(isSimulate && simulateEnabled)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     try {
@@ -1157,7 +1176,7 @@ export async function GET(request: Request) {
     const allowed = (!!userId && b.customerId === userId)
       || (emailLower && ((b as any)?.customerEmail || '').trim().toLowerCase() === emailLower)
       || (!!publicUserId && b.customerId === publicUserId);
-    if (!allowed) {
+    if (!allowed && !(isSimulate && simulateEnabled)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     try {
