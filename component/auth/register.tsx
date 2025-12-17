@@ -44,19 +44,38 @@ export default function AuthRegisterPage() {
 
   useEffect(() => {
     let active = true;
+    const ensureUserRow = async (session: any) => {
+      try {
+        if (!session || !session.user) return;
+        const uid = String(session.user.id || '');
+        const em = String(session.user.email || '').trim().toLowerCase();
+        const meta = (session.user as any)?.user_metadata || {};
+        const full = String(meta?.full_name || '');
+        const avatar = String(meta?.avatar_url || '');
+        if (uid) {
+          await fetch('/api/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: uid, email: em, role: 'CUSTOMER', fullName: full, avatarUrl: avatar }),
+          });
+        }
+      } catch {}
+    };
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!active) return;
       if (session) {
         const raw = searchParams.get('redirectTo') || '/';
         const r = raw ? decodeURIComponent(raw) : '/';
+        await ensureUserRow(session);
         router.replace(r || '/');
       }
     })();
-    const { data: sub } = (supabase as any).auth.onAuthStateChange((_event: any, s: any) => {
+    const { data: sub } = (supabase as any).auth.onAuthStateChange(async (_event: any, s: any) => {
       if (s) {
         const raw = searchParams.get('redirectTo') || '/';
         const r = raw ? decodeURIComponent(raw) : '/';
+        await ensureUserRow(s);
         router.replace(r || '/');
       }
     });

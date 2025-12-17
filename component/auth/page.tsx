@@ -49,15 +49,34 @@ export default function AuthLoginPage() {
 
   useEffect(() => {
     let active = true;
+    const ensureUserRow = async (session: any) => {
+      try {
+        if (!session || !session.user) return;
+        const uid = String(session.user.id || '');
+        const em = String(session.user.email || '').trim().toLowerCase();
+        const meta = (session.user as any)?.user_metadata || {};
+        const full = String(meta?.full_name || '');
+        const avatar = String(meta?.avatar_url || '');
+        if (uid) {
+          await fetch('/api/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: uid, email: em, role: 'CUSTOMER', fullName: full, avatarUrl: avatar }),
+          });
+        }
+      } catch {}
+    };
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!active) return;
       if (session) {
+        await ensureUserRow(session);
         router.replace(redirectParam || '/');
       }
     })();
-    const { data: sub } = (supabase as any).auth.onAuthStateChange((_event: any, s: any) => {
+    const { data: sub } = (supabase as any).auth.onAuthStateChange(async (_event: any, s: any) => {
       if (s) {
+        await ensureUserRow(s);
         router.replace(redirectParam || '/');
       }
     });
@@ -93,6 +112,20 @@ export default function AuthLoginPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
+        try {
+          const meta = (session.user as any)?.user_metadata || {};
+          await fetch('/api/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: session.user.id,
+              email: String(session.user.email || '').trim().toLowerCase(),
+              role: 'CUSTOMER',
+              fullName: String(meta?.full_name || ''),
+              avatarUrl: String(meta?.avatar_url || ''),
+            }),
+          });
+        } catch {}
         router.replace(redirectTo);
         return;
       }

@@ -34,6 +34,22 @@ export function Providers({ children, initialAuth }: { children: React.ReactNode
               const data = await res.json();
               fullName = data?.fullName || fullName;
               avatarUrl = data?.avatarUrl || '';
+            } else {
+              try {
+                const uid = String(session.user?.id || '');
+                const meta = (session.user as any)?.user_metadata || {};
+                const f = String(meta?.full_name || fullName || '');
+                const a = String(meta?.avatar_url || '');
+                if (uid) {
+                  await fetch('/api/profile', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: uid, email, role: 'CUSTOMER', fullName: f, avatarUrl: a }),
+                  });
+                  fullName = f || fullName;
+                  avatarUrl = a || avatarUrl;
+                }
+              } catch {}
             }
           } catch {}
         }
