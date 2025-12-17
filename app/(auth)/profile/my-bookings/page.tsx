@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import { Box, Group, Text, Stack, Container, Modal, Badge, Divider, Alert, SimpleGrid, Button, Textarea, Rating, TextInput, Table, Loader } from '@mantine/core';
 import { IconAlertCircle, IconClock, IconCheck, IconCreditCard } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
@@ -508,7 +508,9 @@ export default function MyBookingsPage() {
 
   return (
     <Box style={{ width: '100%', minHeight: '100vh', backgroundColor: '#ffffff' }}>
-      <Header />
+      <Suspense fallback={<Loader size="sm" color="#284361" />}>
+        <Header />
+      </Suspense>
       <Box component="main">
         <Container size="xl" py="xl">
           <Modal opened={refundOpen} onClose={() => { if (!refundSubmitting) { setRefundOpen(false); setRefundReason(''); setRefundBooking(null); } }} title="Issue Refund">

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Menu as MenuIcon, X, ChevronDown, Globe, DollarSign, User, CalendarDays, Users, LifeBuoy, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -88,18 +88,19 @@ export function Header() {
   }, [currentRedirect]);
  
   return (
-    <Box 
-      component="header" 
-      style={{ 
-        backgroundColor: 'white', 
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)', 
-        position: 'sticky', 
-        top: 0, 
-        zIndex: 50 
-      }}
-    >
-      <Container size="xl" px="md">
-        <Group justify="space-between" h={64}>
+    <Suspense fallback={<Box component="header" style={{ height: 64 }} />}>
+      <Box 
+        component="header" 
+        style={{ 
+          backgroundColor: 'white', 
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)', 
+          position: 'sticky', 
+          top: 0, 
+          zIndex: 50 
+        }}
+      >
+        <Container size="xl" px="md">
+          <Group justify="space-between" h={64}>
           {/* Logo */}
           <Group>
             <Link href="/" style={{ textDecoration: 'none' }}>
@@ -285,10 +286,11 @@ export function Header() {
                 )}
               </Menu.Dropdown>
             </Menu>
+            </Group>
+   
           </Group>
-        </Group>
- 
-      </Container>
-    </Box>
+        </Container>
+      </Box>
+    </Suspense>
   );
 }

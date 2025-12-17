@@ -217,7 +217,7 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
             Upload a new photo to personalize your account
           </Text>
         </Box>
-        <Paper withBorder radius={12} p={16} style={{ borderColor: '#e5e7eb', backgroundColor: '#ffffff', minHeight: 30, width: 240, marginLeft: 'auto' }}>
+        <Paper withBorder radius={12} p={16} style={{ borderColor: '#e5e7eb', backgroundColor: '#ffffff', minHeight: 30, width: 270, marginLeft: 'auto' }}>
           <Group justify="space-between" align="center">
             <Group align="center" gap={12}>
               <img src="https://www.google.com/favicon.ico" alt="Google" style={{ width: 20, height: 20 }} />

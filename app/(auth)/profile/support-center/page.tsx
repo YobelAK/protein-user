@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { Box, Text, TextInput, SimpleGrid, Group, Drawer, Button, Container, Modal, Textarea } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconMenu2 } from '@tabler/icons-react';
@@ -27,7 +27,9 @@ export default function Page() {
 
   return (
     <Box style={{ width: '100%', minHeight: '100vh', backgroundColor: '#ffffff' }}>
-      <Header />
+      <Suspense fallback={<Box style={{ height: 64 }} />}>
+        <Header />
+      </Suspense>
       <Container size="xl" px="md">
         <Box hiddenFrom="md" style={{ marginTop: 12 }}>
           <Button variant="outline" leftSection={<IconMenu2 size={18} />} onClick={open}>

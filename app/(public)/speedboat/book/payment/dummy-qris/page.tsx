@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { Container, Box, Stack, Title, Text, Group, Button, Paper, Alert, Loader } from '@mantine/core';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
@@ -71,7 +71,9 @@ export default function DummyQrisPage() {
 
   return (
     <Box style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
-      <Header />
+      <Suspense fallback={<Box style={{ height: 64 }} />}>
+        <Header />
+      </Suspense>
 
       <Box component="main">
         <Container size="sm" py="xl">

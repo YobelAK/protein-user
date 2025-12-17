@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { Box, Text, Group, Container } from '@mantine/core';
 import { Header } from '@/components/layout/header';
 // import { Sidebar } from '@/components/profile/Sidebar';
@@ -24,7 +24,9 @@ export default function Page() {
   }, []);
   return (
     <Box style={{ width: '100%', minHeight: '100vh', backgroundColor: '#ffffff' }}>
-      <Header />
+      <Suspense fallback={<Box style={{ height: 64 }} />}>
+        <Header />
+      </Suspense>
       <Box component="main">
         <Container size="xl" py="xl">
           <Group justify="space-between" align="flex-start" mb={24}>

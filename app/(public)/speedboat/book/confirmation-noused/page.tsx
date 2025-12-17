@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { 
   Container, 
   Box, 
@@ -79,7 +79,9 @@ export default function BookingConfirmationPage() {
 
   return (
     <Box style={{ minHeight: '100vh', backgroundColor: 'white', display: 'flex', flexDirection: 'column' }}>
-      <Header />
+      <Suspense fallback={<Box style={{ height: 64 }} />}>
+        <Header />
+      </Suspense>
       
       <Box component="main" style={{ flex: 1 }}>
         <Container size="xl" py="xl">
