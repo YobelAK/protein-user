@@ -144,8 +144,8 @@ export function PaymentMethodSelector({
               id="virtual-account" 
               icon={<IconBuilding size={18} />} 
               title="Virtual Account" 
-              subtitle="BCA / Mandiri / BNI" 
-              fee="Transaction fee IDR 5,000 applies" 
+              subtitle="Bank Virtual Account" 
+              fee="" 
               selected={selectedMethod === 'virtual-account'} 
               onSelect={() => onMethodChange('virtual-account')} 
             />
@@ -171,7 +171,7 @@ export function PaymentMethodSelector({
               id="credit-card" 
               icon={<IconCreditCard size={18} />} 
               title="Credit / Debit Card" 
-              subtitle="Processing fee 2.5% applies" 
+              subtitle="" 
               selected={selectedMethod === 'credit-card'} 
               onSelect={() => onMethodChange('credit-card')} 
             />
@@ -193,7 +193,7 @@ export function PaymentMethodSelector({
               id="qris" 
               icon={<IconDeviceMobile size={18} />} 
               title="QRIS" 
-              subtitle="Transaction fee IDR 5,000 applies" 
+              subtitle="" 
               selected={selectedMethod === 'qris'} 
               onSelect={() => onMethodChange('qris')} 
             />
