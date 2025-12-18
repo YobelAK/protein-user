@@ -146,11 +146,18 @@ export async function GET(request: Request) {
 
   const parseHHMMToDate = (dateStr: string, hhmm: string | null | undefined): Date | null => {
     if (!hhmm) return null;
-    const [h, m] = String(hhmm).split(':').map((x) => Number(x));
+    const parts = String(hhmm).split(':');
+    if (parts.length < 2) return null;
+    const h = Number(parts[0]);
+    const m = Number(parts[1]);
     if (Number.isNaN(h) || Number.isNaN(m)) return null;
-    const d = new Date(dateStr);
-    d.setHours(h, m, 0, 0);
-    return d;
+    const [yStr, moStr, daStr] = String(dateStr).split('-');
+    const y = Number(yStr);
+    const mo = Number(moStr);
+    const da = Number(daStr);
+    if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(da)) return null;
+    const ms = Date.UTC(y, mo - 1, da, h - 7, m, 0, 0);
+    return new Date(ms);
   };
   const now = new Date();
   const safeSchedules = schedules.filter((s: any) => {
