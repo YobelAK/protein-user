@@ -30,6 +30,21 @@ function inWindow(depMin: number | null, windows: Array<'morning' | 'afternoon' 
   return windows.some((w) => depMin >= ranges[w][0] && depMin < ranges[w][1]);
 }
 
+function parseHHMMToDate(dateStr: string, hhmm: string | null | undefined): Date | null {
+  if (!hhmm) return null;
+  const [h, m] = String(hhmm).split(':').map((x) => Number(x));
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  const d = new Date(dateStr);
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
+function isTooSoon(dateStr: string, hhmm: string | null | undefined): boolean {
+  const depAt = parseHHMMToDate(dateStr, hhmm);
+  if (!depAt) return false;
+  return depAt.getTime() - Date.now() <= 20 * 60 * 1000;
+}
+
 function mapScheduleToResult(s: any, requestedPassengers?: number, departureDate?: string): ResultCardProps {
   const depMin = toMinutes(s?.departure_time ?? null);
   const arrMin = toMinutes(s?.arrival_time ?? null);
@@ -142,7 +157,8 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
         const arrOk = to ? (s?.arrivalRoute?.id === to) : true;
         const tenantActive = (s?.product?.tenant?.isActive ?? s?.tenant?.isActive ?? true) ? true : false;
         const productActive = (s?.product?.isActive ?? true) ? true : false;
-        return depOk && arrOk && tenantActive && productActive;
+        const tooSoon = isTooSoon(date, s?.departure_time ?? null);
+        return depOk && arrOk && tenantActive && productActive && !tooSoon;
       });
       const passengers = Number(searchParams.get('passengers') ?? '2') || 2;
       setResults((filtered.length ? filtered : items).map((s: any) => mapScheduleToResult(s, passengers, date)));
@@ -368,6 +384,9 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
     if (currentTo) list = list.filter((s: any) => s?.arrivalRoute?.id === currentTo);
     list = list.filter((s: any) => (s?.product?.tenant?.isActive ?? s?.tenant?.isActive ?? true) ? true : false);
     list = list.filter((s: any) => (s?.product?.isActive ?? true) ? true : false);
+    const todayStr = (() => { const d = new Date(); const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, '0'); const da = String(d.getDate()).padStart(2, '0'); return `${y}-${m}-${da}`; })();
+    const dateStr = searchParams.get('departure') ?? todayStr;
+    list = list.filter((s: any) => !isTooSoon(dateStr, s?.departure_time ?? null));
     if (selectedWindows.length) list = list.filter((s: any) => inWindow(toMinutes(s.departure_time), selectedWindows));
     if (selectedProviders.length) list = list.filter((s: any) => selectedProviders.includes(s?.boat?.name ?? s?.product?.name ?? ''));
     if (sortBy === 'lower-price') list.sort((a: any, b: any) => Number(a.product?.price_idr ?? 0) - Number(b.product?.price_idr ?? 0));
@@ -491,7 +510,10 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
               const arrOk = to ? (s?.arrivalRoute?.id === to) : true;
               const tenantActive = (s?.product?.tenant?.isActive ?? s?.tenant?.isActive ?? true) ? true : false;
               const productActive = (s?.product?.isActive ?? true) ? true : false;
-              return depOk && arrOk && tenantActive && productActive;
+              const todayStr = (() => { const d = new Date(); const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, '0'); const da = String(d.getDate()).padStart(2, '0'); return `${y}-${m}-${da}`; })();
+              const dateStr = departure || todayStr;
+              const tooSoon = isTooSoon(dateStr, s?.departure_time ?? null);
+              return depOk && arrOk && tenantActive && productActive && !tooSoon;
             });
             const totalPassengers = Number(passengers ?? initialPassengers) || initialPassengers;
             setResults((filtered.length ? filtered : schedules).map((s) => mapScheduleToResult(s, totalPassengers, departure)));
