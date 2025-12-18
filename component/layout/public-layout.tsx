@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Header } from './header';
 import { Footer } from './footer';
 
@@ -9,7 +9,9 @@ interface PublicLayoutProps {
 export function PublicLayout({ children }: PublicLayoutProps) {
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
+      <Suspense fallback={<div style={{ height: 64 }} />}>
+        <Header />
+      </Suspense>
       <main className="flex-1">
         {children}
       </main>
