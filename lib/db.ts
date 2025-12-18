@@ -6,7 +6,7 @@ const globalAny = globalThis as any
 const connStr = process.env.DATABASE_URL || ''
 const pool = globalAny.__btg_pgPool ?? new Pool({
   connectionString: connStr,
-  max: Number(process.env.PG_POOL_MAX || 5),
+  max: Number(process.env.PG_POOL_MAX || 10),
   idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT || 10000),
   connectionTimeoutMillis: Number(process.env.PG_CONN_TIMEOUT || 5000),
 })

@@ -141,7 +141,8 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
         const depOk = from ? (s?.departureRoute?.id === from) : true;
         const arrOk = to ? (s?.arrivalRoute?.id === to) : true;
         const tenantActive = (s?.product?.tenant?.isActive ?? s?.tenant?.isActive ?? true) ? true : false;
-        return depOk && arrOk && tenantActive;
+        const productActive = (s?.product?.isActive ?? true) ? true : false;
+        return depOk && arrOk && tenantActive && productActive;
       });
       const passengers = Number(searchParams.get('passengers') ?? '2') || 2;
       setResults((filtered.length ? filtered : items).map((s: any) => mapScheduleToResult(s, passengers, date)));
@@ -366,6 +367,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
     if (currentFrom) list = list.filter((s: any) => s?.departureRoute?.id === currentFrom);
     if (currentTo) list = list.filter((s: any) => s?.arrivalRoute?.id === currentTo);
     list = list.filter((s: any) => (s?.product?.tenant?.isActive ?? s?.tenant?.isActive ?? true) ? true : false);
+    list = list.filter((s: any) => (s?.product?.isActive ?? true) ? true : false);
     if (selectedWindows.length) list = list.filter((s: any) => inWindow(toMinutes(s.departure_time), selectedWindows));
     if (selectedProviders.length) list = list.filter((s: any) => selectedProviders.includes(s?.boat?.name ?? s?.product?.name ?? ''));
     if (sortBy === 'lower-price') list.sort((a: any, b: any) => Number(a.product?.price_idr ?? 0) - Number(b.product?.price_idr ?? 0));
@@ -488,7 +490,8 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
               const depOk = from ? (s?.departureRoute?.id === from) : true;
               const arrOk = to ? (s?.arrivalRoute?.id === to) : true;
               const tenantActive = (s?.product?.tenant?.isActive ?? s?.tenant?.isActive ?? true) ? true : false;
-              return depOk && arrOk && tenantActive;
+              const productActive = (s?.product?.isActive ?? true) ? true : false;
+              return depOk && arrOk && tenantActive && productActive;
             });
             const totalPassengers = Number(passengers ?? initialPassengers) || initialPassengers;
             setResults((filtered.length ? filtered : schedules).map((s) => mapScheduleToResult(s, totalPassengers, departure)));
