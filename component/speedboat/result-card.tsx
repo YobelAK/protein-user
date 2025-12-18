@@ -59,11 +59,11 @@ export function ResultCard({
   available,
   requestedPassengers
 }: ResultCardProps) {
-  const formatPrice = (price: number) => {
-    return `Rp ${price.toLocaleString('id-ID')}`;
-  };
+  const formatPriceIdr = (price: number) => `IDR ${price.toLocaleString('id-ID')}`;
+  const formatPriceUsd = (price: number) => `USD ${price.toLocaleString('en-US')}`;
 
   const priceIdr = prices.indonesian.adult;
+  const priceUsd = prices.foreigner.adult;
   const href = `/speedboat/book?sid=${encodeURIComponent(String(id ?? ''))}&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&departureTime=${encodeURIComponent(departureTime)}&departureDate=${encodeURIComponent(String(departureDate ?? ''))}&provider=${encodeURIComponent(provider)}&priceIdr=${encodeURIComponent(String(priceIdr))}`;
   const canBook = (Number(available ?? 0) > 0) && ((requestedPassengers ?? 1) <= Number(available ?? 0));
   const logoSrc = logo && String(logo).trim() ? logo : 'https://via.placeholder.com/60';
@@ -109,6 +109,7 @@ export function ResultCard({
           direct.set('departureDate', String(departureDate ?? ''));
           direct.set('provider', provider);
           direct.set('priceIdr', String(priceIdr));
+          direct.set('priceUsd', String(priceUsd));
           direct.set('adult', String(a));
           direct.set('child', String(c));
           direct.set('infant', String(i));
@@ -151,6 +152,7 @@ export function ResultCard({
         const inbound = {
           sid: String(id ?? ''),
           priceIdr: priceIdr,
+          priceUsd: priceUsd,
           origin,
           destination,
           departureTime,
@@ -165,6 +167,7 @@ export function ResultCard({
       const outbound = {
         sid: String(id ?? ''),
         priceIdr: priceIdr,
+        priceUsd: priceUsd,
         from: fromId,
         to: toId,
         origin,
@@ -308,13 +311,13 @@ export function ResultCard({
                 <tbody>
                   <tr>
                     <td style={{ color: '#000000', fontWeight: 500 }}>Indonesian</td>
-                    <td style={{ color: '#000000', fontWeight: 500 }}>{formatPrice(prices.indonesian.adult)}</td>
-                    <td style={{ color: '#000000', fontWeight: 500 }}>{formatPrice(prices.indonesian.child)}</td>
+                    <td style={{ color: '#000000', fontWeight: 500 }}>{formatPriceIdr(prices.indonesian.adult)}</td>
+                    <td style={{ color: '#000000', fontWeight: 500 }}>{formatPriceIdr(prices.indonesian.child)}</td>
                   </tr>
                   <tr>
                     <td style={{ color: '#000000', fontWeight: 500 }}>Foreigner</td>
-                    <td style={{ color: '#000000', fontWeight: 500 }}>{formatPrice(prices.foreigner.adult)}</td>
-                    <td style={{ color: '#000000', fontWeight: 500 }}>{formatPrice(prices.foreigner.child)}</td>
+                    <td style={{ color: '#000000', fontWeight: 500 }}>{formatPriceUsd(prices.foreigner.adult)}</td>
+                    <td style={{ color: '#000000', fontWeight: 500 }}>{formatPriceUsd(prices.foreigner.child)}</td>
                   </tr>
                 </tbody>
               </Table>
@@ -395,7 +398,10 @@ export function ResultCard({
             </Group>
 
             <Group justify="space-between" align="center">
-              <Text fw={700} c="#284361">{formatPrice(priceIdr)}</Text>
+              <Stack gap={2} align="flex-end">
+                <Text fw={700} c="#284361">{formatPriceIdr(priceIdr)}</Text>
+                <Text size="sm" c="dark">{formatPriceUsd(priceUsd)}</Text>
+              </Stack>
               {canBook ? (
                 <Button
                   onClick={handleBookClick}
@@ -436,13 +442,13 @@ export function ResultCard({
                   <tbody>
                     <tr>
                       <td>Indonesian</td>
-                      <td>{formatPrice(prices.indonesian.adult)}</td>
-                      <td>{formatPrice(prices.indonesian.child)}</td>
+                      <td>{formatPriceIdr(prices.indonesian.adult)}</td>
+                      <td>{formatPriceIdr(prices.indonesian.child)}</td>
                     </tr>
                     <tr>
                       <td>Foreigner</td>
-                      <td>{formatPrice(prices.foreigner.adult)}</td>
-                      <td>{formatPrice(prices.foreigner.child)}</td>
+                      <td>{formatPriceUsd(prices.foreigner.adult)}</td>
+                      <td>{formatPriceUsd(prices.foreigner.child)}</td>
                     </tr>
                   </tbody>
                 </Table>

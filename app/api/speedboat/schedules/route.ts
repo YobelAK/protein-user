@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     'arrival_time',
     'capacity',
     'isActive',
-    'product:products!fastboat_schedules_productId_fkey(id,name,price_idr,price_usd,featured_image,category:categories!products_categoryId_fkey(id,name),tenant:tenants!products_tenantId_fkey(vendor_name))',
+    'product:products!fastboat_schedules_productId_fkey(id,name,price_idr,price_usd,featured_image,category:categories!products_categoryId_fkey(id,name),tenant:tenants!products_tenantId_fkey(vendor_name,isActive))',
     'departureRoute:routes!fastboat_schedules_departureRouteId_fkey(id,name)',
     'arrivalRoute:routes!fastboat_schedules_arrivalRouteId_fkey(id,name)',
     'boat:boats!fastboat_schedules_boatId_fkey(id,name,capacity,registration_number,image_urls)'
@@ -85,7 +85,8 @@ export async function GET(request: Request) {
     const depOk = from ? (s?.departureRoute?.id === from) : true;
     const arrOk = to ? (s?.arrivalRoute?.id === to) : true;
     const winOk = inWindow(toMinutes(s?.departure_time ?? null));
-    return depOk && arrOk && winOk;
+    const tenantActive = (s?.product?.tenant?.isActive ?? true) === true;
+    return depOk && arrOk && winOk && tenantActive;
   });
 
   const today = (() => {

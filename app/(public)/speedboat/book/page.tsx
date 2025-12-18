@@ -45,12 +45,14 @@ function BookingPageContent() {
   const departureDate = searchParams.get('departureDate') ?? '';
   const provider = searchParams.get('provider') ?? '';
   const priceIdr = Number(searchParams.get('priceIdr') ?? '0');
+  const [priceUsd, setPriceUsd] = useState<number>(0);
   const origin2 = searchParams.get('origin2') ?? '';
   const destination2 = searchParams.get('destination2') ?? '';
   const departureTime2 = searchParams.get('departureTime2') ?? '';
   const departureDate2 = searchParams.get('departureDate2') ?? '';
   const provider2 = searchParams.get('provider2') ?? '';
   const priceIdr2 = Number(searchParams.get('priceIdr2') ?? '0');
+  const [priceUsd2, setPriceUsd2] = useState<number>(0);
   const trip = useMemo(() => {
     const a = `${origin} → ${destination}`;
     const b = origin2 && destination2 ? ` • ${origin2} → ${destination2}` : '';
@@ -60,20 +62,23 @@ function BookingPageContent() {
   const [initialCounts, setInitialCounts] = useState<{ adult: number; child: number; infant: number }>({ adult: 1, child: 0, infant: 0 });
   const [contact, setContact] = useState<{ firstName: string; lastName: string; email: string; countryCode: string; phone: string; specialRequests?: string; agreed?: boolean }>({ firstName: '', lastName: '', email: '', countryCode: '+62', phone: '' });
   const [passengers, setPassengers] = useState<any[]>([]);
+  const [currency, setCurrency] = useState<'IDR' | 'USD'>('IDR');
   const passengerPrice = useMemo(() => {
     const factor = (age: string) => {
       const a = String(age || '').toLowerCase();
       return (a === 'child' || a === 'infant') ? 0.75 : 1;
     };
+    const base1 = currency === 'USD' ? priceUsd : priceIdr;
+    const base2 = currency === 'USD' ? priceUsd2 : priceIdr2;
     if (!Array.isArray(passengers) || passengers.length === 0) {
-      const base1 = priceIdr * Math.max(1, guestCount);
-      const base2 = priceIdr2 * Math.max(1, guestCount);
-      return base1 + (priceIdr2 ? base2 : 0);
+      const a = base1 * Math.max(1, guestCount);
+      const b = base2 * Math.max(1, guestCount);
+      return a + (base2 ? b : 0);
     }
-    const sum1 = passengers.reduce((sum, p) => sum + Math.round(priceIdr * factor(p?.ageCategory)), 0);
-    const sum2 = priceIdr2 ? passengers.reduce((sum, p) => sum + Math.round(priceIdr2 * factor(p?.ageCategory)), 0) : 0;
+    const sum1 = passengers.reduce((sum, p) => sum + Math.round(base1 * factor(p?.ageCategory)), 0);
+    const sum2 = base2 ? passengers.reduce((sum, p) => sum + Math.round(base2 * factor(p?.ageCategory)), 0) : 0;
     return sum1 + sum2;
-  }, [priceIdr, priceIdr2, passengers, guestCount]);
+  }, [currency, priceUsd, priceUsd2, priceIdr, priceIdr2, passengers, guestCount]);
   const passengersList = useMemo(() => passengers.map((p) => ({ nationality: p.nationality, ageCategory: p.ageCategory })), [passengers]);
   const [arrivalTime, setArrivalTime] = useState<string>('');
   const [boat, setBoat] = useState<{ name?: string; code?: string; capacity?: number; duration?: string }>({});
@@ -94,6 +99,25 @@ function BookingPageContent() {
   const [loadingInbound, setLoadingInbound] = useState(false);
   const [loadingOutbound, setLoadingOutbound] = useState(false);
   const [continueLoading, setContinueLoading] = useState(false);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const email = session?.user?.email || '';
+        const userId = session?.user?.id || '';
+        const query = email ? `email=${encodeURIComponent(email)}` : (userId ? `userId=${encodeURIComponent(userId)}` : '');
+        if (query) {
+          const res = await fetch(`/api/profile?${query}`, { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            const cur = String(data?.currency || '').toUpperCase();
+            if (cur === 'USD' || cur === 'IDR') setCurrency(cur as any);
+          }
+        }
+      } catch {}
+    })();
+  }, []);
 
   React.useEffect(() => {
     const sid = searchParams.get('sid') ?? '';
@@ -120,6 +144,7 @@ function BookingPageContent() {
           setBoat({ name: s?.boat?.name ?? undefined, code: s?.boat?.registration_number ?? undefined, capacity: s?.boat?.capacity ?? undefined, duration });
           setVendorName(s?.product?.tenant?.vendor_name ?? '');
           setCategoryName(s?.product?.category?.name ?? '');
+          setPriceUsd(Number(s?.product?.price_usd ?? 0));
           const inv = s?.inventory;
           if (inv) {
             setInventoryId(String(inv.id || ''));
@@ -169,6 +194,7 @@ function BookingPageContent() {
           const duration = dm != null && am != null && am >= dm ? `${am - dm} min` : undefined;
           setBoat2({ name: s?.boat?.name ?? undefined, code: s?.boat?.registration_number ?? undefined, capacity: s?.boat?.capacity ?? undefined, duration });
           setVendorName2(s?.product?.tenant?.vendor_name ?? '');
+          setPriceUsd2(Number(s?.product?.price_usd ?? 0));
           const inv = s?.inventory;
           if (inv) {
             setInventoryIdOutbound(String(inv.id || ''));
@@ -267,19 +293,20 @@ function BookingPageContent() {
               </Stack>
             </Grid.Col>
           <Grid.Col span={{ base: 12, lg: 4 }}>
-            <BookingSummary 
-              trip={trip} 
-              categoryName={categoryName}
-              departureDate={departureDate}
-              departureTime={departureTime}
-              arrivalTime={arrivalTime}
-              boat={boat}
-              vendorName={vendorName}
-              passengersList={passengersList}
-              passengerSubtotal={passengerPrice} 
-              portFee={10000} 
-              inventoryDate={inventoryDate || departureDate}
-              availableUnits={availableUnits}
+              <BookingSummary 
+                trip={trip} 
+                categoryName={categoryName}
+                departureDate={departureDate}
+                departureTime={departureTime}
+                arrivalTime={arrivalTime}
+                boat={boat}
+                vendorName={vendorName}
+                passengersList={passengersList}
+                passengerSubtotal={passengerPrice} 
+                portFee={currency === 'USD' ? 1 : 10000} 
+                inventoryDate={inventoryDate || departureDate}
+                availableUnits={availableUnits}
+                currency={currency}
               segments={[
                 ...(origin2 && destination2 ? [{
                   title: 'Departure Ticket',
@@ -325,37 +352,37 @@ function BookingPageContent() {
                     return (a === 'child' || a === 'infant') ? 0.75 : 1;
                   };
                   const segTotal = (price: number) => passengers.reduce((sum, p) => sum + Math.round(price * factorFor(p?.ageCategory)), 0);
-                  const payloadOutbound = scheduleIdOutbound ? {
-                    scheduleId: scheduleIdOutbound,
-                    origin: origin2 || destination,
-                    destination: destination2 || origin,
-                    departureTime: departureTime2 || departureTime,
-                    departureDate: departureDate2 || departureDate,
-                    guestCount,
-                    priceIdr: priceIdr2 || priceIdr,
-                    portFee: 10000,
-                    totalAmount: segTotal(priceIdr2 || priceIdr) + 10000,
-                    contact,
-                    passengers,
-                    currency: 'IDR',
-                    inventoryId: inventoryIdOutbound,
-                  } : null;
-                  const inboundPortFee = scheduleIdOutbound ? 0 : 10000;
-                  const payloadInbound = scheduleIdInbound ? {
-                    scheduleId: scheduleIdInbound,
-                    origin,
-                    destination,
-                    departureTime,
-                    departureDate,
-                    guestCount,
-                    priceIdr,
-                    portFee: inboundPortFee,
-                    totalAmount: segTotal(priceIdr) + inboundPortFee,
-                    contact,
-                    passengers,
-                    currency: 'IDR',
-                    inventoryId,
-                  } : null;
+                const payloadOutbound = scheduleIdOutbound ? {
+                  scheduleId: scheduleIdOutbound,
+                  origin: origin2 || destination,
+                  destination: destination2 || origin,
+                  departureTime: departureTime2 || departureTime,
+                  departureDate: departureDate2 || departureDate,
+                  guestCount,
+                  priceIdr: currency === 'USD' ? (priceUsd2 || priceUsd) : (priceIdr2 || priceIdr),
+                  portFee: currency === 'USD' ? 1 : 10000,
+                  totalAmount: segTotal(currency === 'USD' ? (priceUsd2 || priceUsd) : (priceIdr2 || priceIdr)) + (currency === 'USD' ? 1 : 10000),
+                  contact,
+                  passengers,
+                  currency,
+                  inventoryId: inventoryIdOutbound,
+                } : null;
+                const inboundPortFee = scheduleIdOutbound ? 0 : (currency === 'USD' ? 1 : 10000);
+                const payloadInbound = scheduleIdInbound ? {
+                  scheduleId: scheduleIdInbound,
+                  origin,
+                  destination,
+                  departureTime,
+                  departureDate,
+                  guestCount,
+                  priceIdr: currency === 'USD' ? priceUsd : priceIdr,
+                  portFee: inboundPortFee,
+                  totalAmount: segTotal(currency === 'USD' ? priceUsd : priceIdr) + inboundPortFee,
+                  contact,
+                  passengers,
+                  currency,
+                  inventoryId,
+                } : null;
                   const redirectTo = (() => {
                     try {
                       const url = new URL(typeof window !== 'undefined' ? window.location.href : '');
@@ -380,7 +407,7 @@ function BookingPageContent() {
                   legs.push({
                     scheduleId: scheduleIdOutbound,
                     departureDate: departureDate2 || departureDate,
-                    priceIdr: priceIdr2 || priceIdr,
+                    priceIdr: currency === 'USD' ? (priceUsd2 || priceUsd) : (priceIdr2 || priceIdr),
                     inventoryId: inventoryIdOutbound,
                     notes: JSON.stringify({ rtType: 'OUTBOUND', userNotes: baseNotes || '' }),
                     rtType: 'OUTBOUND',
@@ -390,13 +417,13 @@ function BookingPageContent() {
                   legs.push({
                     scheduleId: scheduleIdInbound,
                     departureDate,
-                    priceIdr,
+                    priceIdr: currency === 'USD' ? priceUsd : priceIdr,
                     inventoryId,
                     notes: JSON.stringify({ rtType: 'INBOUND', userNotes: baseNotes || '' }),
                     rtType: 'INBOUND',
                   });
                 }
-                const totalPortFee = 10000;
+                const totalPortFee = currency === 'USD' ? 1 : 10000;
                 const totalAmountCombined = legs.reduce((sum, lg) => sum + segTotal(lg.priceIdr), 0) + totalPortFee;
                 const phoneE164 = normalizePhoneE164(contact.countryCode, contact.phone);
                 const payloadCombined = {
@@ -406,7 +433,7 @@ function BookingPageContent() {
                   totalAmount: totalAmountCombined,
                   contact: { ...contact, phone: (phoneE164 || `${String(contact.countryCode || '')} ${String(contact.phone || '')}`.trim()), fullName: contactFullName },
                   passengers,
-                  currency: 'IDR',
+                  currency,
                   ownerId,
                   ownerEmail,
                 };

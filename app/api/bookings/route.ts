@@ -98,6 +98,8 @@ export async function POST(request: Request) {
     const priceIdr = Number(body?.priceIdr || 0);
     const portFee = Number(body?.portFee || 0);
     const totalAmountFromClient = Number(body?.totalAmount || 0);
+    const currencyRaw = String(body?.currency || 'IDR').toUpperCase();
+    const currency = currencyRaw === 'USD' ? 'USD' : 'IDR';
     const legs = Array.isArray((body as any)?.legs) ? (body as any).legs : [];
     const contact = body?.contact || {};
     const passengers = Array.isArray(body?.passengers) ? body.passengers : [];
@@ -377,7 +379,7 @@ export async function POST(request: Request) {
             tenantId,
             customerId,
             booking_code: bookingCode,
-            currency: 'IDR',
+            currency,
             total_amount: totalAmount,
             status: 'PENDING',
             booking_date: (() => {
@@ -409,7 +411,7 @@ export async function POST(request: Request) {
             tenantId,
             customerId,
             bookingCode,
-            currency: 'IDR',
+            currency,
             totalAmount: String(totalAmount),
             status: 'PENDING',
             bookingDate: (() => {
@@ -436,7 +438,7 @@ export async function POST(request: Request) {
           tenantId,
           customerId,
           bookingCode,
-          currency: 'IDR',
+          currency,
           totalAmount: String(totalAmount),
           status: 'PENDING',
           bookingDate: (() => {

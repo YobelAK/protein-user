@@ -664,7 +664,8 @@ export default function BookingConfirmationPage() {
                     const amt = booking?.paidAmount ?? booking?.totalAmount;
                     if (!amt) return '-';
                     const n = Number(amt);
-                    return `IDR ${n.toLocaleString('id-ID')}`;
+                    const cur = String(booking?.currency || 'IDR');
+                    return `${cur} ${cur === 'USD' ? n.toLocaleString('en-US', { minimumFractionDigits: 2 }) : n.toLocaleString('id-ID')}`;
                   })()}</Text>
                 </Group>
                 <Group justify="space-between" align="center">
@@ -844,7 +845,8 @@ export default function BookingConfirmationPage() {
                         const amt = booking?.paidAmount ?? booking?.totalAmount;
                         if (!amt) return '-';
                         const n = Number(amt);
-                        return `IDR ${n.toLocaleString('id-ID')}`;
+                        const cur = String(booking?.currency || 'IDR');
+                        return `${cur} ${cur === 'USD' ? n.toLocaleString('en-US', { minimumFractionDigits: 2 }) : n.toLocaleString('id-ID')}`;
                       })()}</Text>
                     </Group>
                   </Box>
@@ -1208,7 +1210,8 @@ export default function BookingConfirmationPage() {
                     const amt = booking?.paidAmount ?? booking?.totalAmount;
                     if (!amt) return '-';
                     const n = Number(amt);
-                    return `IDR ${n.toLocaleString('id-ID')}`;
+                    const cur = String(booking?.currency || 'IDR');
+                    return `${cur} ${cur === 'USD' ? n.toLocaleString('en-US', { minimumFractionDigits: 2 }) : n.toLocaleString('id-ID')}`;
                   })()}</Text>
                 </Group>
                 <Group justify="space-between" align="center">
@@ -2300,7 +2303,8 @@ export default function BookingConfirmationPage() {
                   const amt = booking?.paidAmount ?? booking?.totalAmount;
                   if (!amt) return '-';
                   const n = Number(amt);
-                  return `IDR ${n.toLocaleString('id-ID')}`;
+                  const cur = String(booking?.currency || 'IDR').toUpperCase();
+                  return `${cur} ${cur === 'USD' ? n.toLocaleString('en-US', { minimumFractionDigits: 2 }) : n.toLocaleString('id-ID')}`;
                 })()}</Text>
               </Box>
               <Box>
@@ -2337,14 +2341,15 @@ export default function BookingConfirmationPage() {
                   <Text fw={600} c="#284361">{booking?.paymentMethod || '-'}</Text>
                 </Box>
                 <Box>
-                  <Text size="sm" c="dimmed" mb={4}>Amount</Text>
-                  <Text fw={600} c="#284361">{(() => {
-                    const amt = booking?.paidAmount ?? booking?.totalAmount;
-                    if (!amt) return '-';
-                    const n = Number(amt);
-                    return `IDR ${n.toLocaleString('id-ID')}`;
-                  })()}</Text>
-                </Box>
+                <Text size="sm" c="dimmed" mb={4}>Amount</Text>
+                <Text fw={600} c="#284361">{(() => {
+                  const amt = booking?.paidAmount ?? booking?.totalAmount;
+                  if (!amt) return '-';
+                  const n = Number(amt);
+                  const cur = String(booking?.currency || 'IDR').toUpperCase();
+                  return `${cur} ${cur === 'USD' ? n.toLocaleString('en-US', { minimumFractionDigits: 2 }) : n.toLocaleString('id-ID')}`;
+                })()}</Text>
+              </Box>
                 <Box>
                   <Text size="sm" c="dimmed" mb={4}>Status</Text>
                   <Text fw={600} c="#2dbe8d">{booking?.status || '-'}</Text>

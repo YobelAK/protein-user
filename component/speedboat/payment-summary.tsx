@@ -43,7 +43,8 @@ export function PaymentSummary({
 }: PaymentSummaryProps) {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [expiredNotified, setExpiredNotified] = useState(false);
-  const formatNumber = (n: number) => new Intl.NumberFormat('id-ID').format(n);
+  const currencyView = String(((Array.isArray(bookings) && bookings.length > 0 ? bookings[0]?.currency : booking?.currency) || 'IDR')).toUpperCase();
+  const formatNumber = (n: number) => new Intl.NumberFormat(currencyView === 'USD' ? 'en-US' : 'id-ID', currencyView === 'USD' ? { minimumFractionDigits: 2 } : undefined).format(n);
   const passengerSubtotalSingle = ((booking?.booking_items || []) as any[]).reduce((sum, it: any) => sum + Number(it.subtotal || 0), 0);
   const totalAmountSingle = Number(booking?.total_amount || 0);
   const multiItems = Array.isArray(bookings) && bookings.length > 0 ? bookings.flatMap((b: any) => (Array.isArray(b?.booking_items) ? b.booking_items : [])) : [];
@@ -54,6 +55,7 @@ export function PaymentSummary({
   const safePassengerSubtotal = Number.isFinite(passengerSubtotal) && passengerSubtotal >= 0 ? passengerSubtotal : 0;
   const safeTotalAmount = Number.isFinite(totalAmount) && totalAmount >= 0 ? totalAmount : 0;
   const portFeeCalc = Math.max(0, safeTotalAmount - safePassengerSubtotal);
+  const effectivePortFee = currencyView === 'USD' ? 1 : portFeeCalc;
 
   useEffect(() => {
     if (!booking) return;
@@ -89,16 +91,16 @@ export function PaymentSummary({
       <Stack gap="md">
         <Group justify="space-between" align="center">
           <Text style={{ color: '#6b7280' }}>Passengers</Text>
-          <Text style={{ fontWeight: 500, color: '#111827' }}>IDR {formatNumber(safePassengerSubtotal)}</Text>
+          <Text style={{ fontWeight: 500, color: '#111827' }}>{currencyView === 'USD' ? 'USD' : 'IDR'} {formatNumber(safePassengerSubtotal)}</Text>
         </Group>
         <Group justify="space-between" align="center">
           <Text style={{ color: '#6b7280' }}>Port Fee</Text>
-          <Text style={{ fontWeight: 500, color: '#111827' }}>IDR {formatNumber(portFeeCalc)}</Text>
+          <Text style={{ fontWeight: 500, color: '#111827' }}>{currencyView === 'USD' ? 'USD' : 'IDR'} {formatNumber(effectivePortFee)}</Text>
         </Group>
         <Divider />
         <Group justify="space-between" align="center">
           <Text size="lg" style={{ fontWeight: 700, color: '#111827' }}>Total Payment</Text>
-          <Text size="lg" style={{ fontWeight: 700, color: '#2dbe8d' }}>IDR {formatNumber(safeTotalAmount)}</Text>
+          <Text size="lg" style={{ fontWeight: 700, color: '#2dbe8d' }}>{currencyView === 'USD' ? 'USD' : 'IDR'} {formatNumber(safeTotalAmount)}</Text>
         </Group>
         <Group justify="space-between" align="center">
           <Text style={{ color: '#6b7280' }}>Status</Text>

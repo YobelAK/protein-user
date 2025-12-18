@@ -58,8 +58,7 @@ function mapScheduleToResult(s: any, requestedPassengers?: number, departureDate
     destination: s?.arrivalRoute?.name ?? '',
     prices: {
       indonesian: { adult: priceIdr, child: Math.round(priceIdr * 0.75) },
-      foreigner: { adult: priceIdr, child: Math.round(priceIdr * 0.75) },
-      // foreigner: { adult: priceUsd, child: Math.round(priceUsd * 0.75) },
+      foreigner: { adult: priceUsd, child: Math.round(priceUsd * 0.75) },
     },
     capacity,
     available,
@@ -141,7 +140,8 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
       const filtered = items.filter((s: any) => {
         const depOk = from ? (s?.departureRoute?.id === from) : true;
         const arrOk = to ? (s?.arrivalRoute?.id === to) : true;
-        return depOk && arrOk;
+        const tenantActive = (s?.product?.tenant?.isActive ?? s?.tenant?.isActive ?? true) ? true : false;
+        return depOk && arrOk && tenantActive;
       });
       const passengers = Number(searchParams.get('passengers') ?? '2') || 2;
       setResults((filtered.length ? filtered : items).map((s: any) => mapScheduleToResult(s, passengers, date)));
@@ -365,6 +365,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
     let list = [...schedules];
     if (currentFrom) list = list.filter((s: any) => s?.departureRoute?.id === currentFrom);
     if (currentTo) list = list.filter((s: any) => s?.arrivalRoute?.id === currentTo);
+    list = list.filter((s: any) => (s?.product?.tenant?.isActive ?? s?.tenant?.isActive ?? true) ? true : false);
     if (selectedWindows.length) list = list.filter((s: any) => inWindow(toMinutes(s.departure_time), selectedWindows));
     if (selectedProviders.length) list = list.filter((s: any) => selectedProviders.includes(s?.boat?.name ?? s?.product?.name ?? ''));
     if (sortBy === 'lower-price') list.sort((a: any, b: any) => Number(a.product?.price_idr ?? 0) - Number(b.product?.price_idr ?? 0));
@@ -486,7 +487,8 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             const filtered = schedules.filter((s: any) => {
               const depOk = from ? (s?.departureRoute?.id === from) : true;
               const arrOk = to ? (s?.arrivalRoute?.id === to) : true;
-              return depOk && arrOk;
+              const tenantActive = (s?.product?.tenant?.isActive ?? s?.tenant?.isActive ?? true) ? true : false;
+              return depOk && arrOk && tenantActive;
             });
             const totalPassengers = Number(passengers ?? initialPassengers) || initialPassengers;
             setResults((filtered.length ? filtered : schedules).map((s) => mapScheduleToResult(s, totalPassengers, departure)));
@@ -621,7 +623,14 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             <Stack gap={6}>
               <Group justify="space-between">
                 <Text fw={700}>Outbound</Text>
-                <Text fw={600} c="#284361">{outboundSel ? `Rp ${Number(outboundSel.priceIdr || 0).toLocaleString('id-ID')}` : '-'}</Text>
+                <Text fw={600} c="#284361">
+                  {outboundSel ? `Rp ${Number(outboundSel.priceIdr || 0).toLocaleString('id-ID')}` : '-'}
+                </Text>
+              </Group>
+              <Group justify="flex-end">
+                <Text size="sm" c="#284361">
+                  {outboundSel ? `USD ${Number(outboundSel.priceUsd || 0).toLocaleString('en-US')}` : ''}
+                </Text>
               </Group>
               <Text>{outboundSel ? `${outboundSel.origin} → ${outboundSel.destination}` : '-'}</Text>
               <Group gap="sm">
@@ -638,7 +647,14 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             <Stack gap={6}>
               <Group justify="space-between">
                 <Text fw={700}>Inbound</Text>
-                <Text fw={600} c="#284361">{inboundSel ? `Rp ${Number(inboundSel.priceIdr || 0).toLocaleString('id-ID')}` : '-'}</Text>
+                <Text fw={600} c="#284361">
+                  {inboundSel ? `Rp ${Number(inboundSel.priceIdr || 0).toLocaleString('id-ID')}` : '-'}
+                </Text>
+              </Group>
+              <Group justify="flex-end">
+                <Text size="sm" c="#284361">
+                  {inboundSel ? `USD ${Number(inboundSel.priceUsd || 0).toLocaleString('en-US')}` : ''}
+                </Text>
               </Group>
               <Text>{inboundSel ? `${inboundSel.origin} → ${inboundSel.destination}` : 'Belum memilih tiket pulang'}</Text>
               <Group gap="sm">

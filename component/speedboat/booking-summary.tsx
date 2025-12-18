@@ -48,6 +48,7 @@ interface BookingSummaryProps {
   continueDisabled?: boolean;
   onContinue?: () => void;
   continueLoading?: boolean;
+  currency?: 'IDR' | 'USD';
 }
 
 export function BookingSummary({
@@ -72,10 +73,13 @@ export function BookingSummary({
   continueDisabled,
   onContinue,
   continueLoading,
+  currency = 'IDR',
 }: BookingSummaryProps) {
   const addOnsTotal = addOns.reduce((total, addOn) => total + addOn.price, 0);
-  const totalPrice = passengerSubtotal + portFee + addOnsTotal;
-  const formatNumber = (n: number) => new Intl.NumberFormat('id-ID').format(n);
+  const effectivePortFee = currency === 'USD' ? 1 : portFee;
+  const totalPrice = passengerSubtotal + effectivePortFee + addOnsTotal;
+  const formatNumber = (n: number) => new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'id-ID', currency === 'USD' ? { minimumFractionDigits: 2 } : undefined).format(n);
+  const currencyLabel = currency === 'USD' ? 'USD' : 'IDR';
 
   const handleContinue = () => {
     if (onContinue) {
@@ -426,16 +430,16 @@ export function BookingSummary({
         <Stack gap="sm">
           <Group justify="space-between" align="center">
             <Text size="sm" c="#374151">Passengers</Text>
-            <Text size="sm" fw={500} c="dark">IDR {formatNumber(passengerSubtotal)}</Text>
+            <Text size="sm" fw={500} c="dark">{currencyLabel} {formatNumber(passengerSubtotal)}</Text>
           </Group>
           <Group justify="space-between" align="center">
             <Text size="sm" c="#374151">Port Fee</Text>
-            <Text size="sm" fw={500} c="dark">IDR {formatNumber(portFee)}</Text>
+            <Text size="sm" fw={500} c="dark">{currencyLabel} {formatNumber(effectivePortFee)}</Text>
           </Group>
           {addOns.map((addOn) => (
             <Group key={addOn.id} justify="space-between" align="center">
               <Text size="sm" c="#374151">{addOn.title}</Text>
-              <Text size="sm" fw={500} c="dark">IDR {formatNumber(addOn.price)}</Text>
+              <Text size="sm" fw={500} c="dark">{currencyLabel} {formatNumber(addOn.price)}</Text>
             </Group>
           ))}
         </Stack>
@@ -445,7 +449,7 @@ export function BookingSummary({
         <Stack gap="xs">
           <Group justify="space-between" align="center">
             <Text size="md" fw={600} c="dark">Total</Text>
-            <Text size="lg" fw={700} c="dark">IDR {formatNumber(totalPrice)}</Text>
+            <Text size="lg" fw={700} c="dark">{currencyLabel} {formatNumber(totalPrice)}</Text>
           </Group>
         </Stack>
 

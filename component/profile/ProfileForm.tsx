@@ -290,7 +290,7 @@ export function ProfileForm(props: { initialValues?: ProfileInitialValues; onSub
           <Select
             value={formData.currency || ''}
             onChange={(value) => setFormData({ ...formData, currency: value || '' })}
-            data={['IDR', 'USD', 'EUR', 'SGD']}
+            data={['IDR', 'USD']}
             styles={{ input: { borderColor: '#e8f1f5', borderRadius: 8, padding: '12px 16px' ,background: 'white'} }}
           />
         </Grid.Col>

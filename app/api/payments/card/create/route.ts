@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     if (booking.status !== 'PENDING') {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
     }
-    const amount = Number(booking.totalAmount || 0);
+    const amountQuoted = Number(booking.totalAmount || 0);
     const now = Date.now();
     const expiresAt = new Date(now + 15 * 60 * 1000);
     const apiKey = process.env.XENDIT_API_KEY || '';
@@ -116,12 +116,19 @@ export async function POST(request: Request) {
       return undefined;
     };
     const phoneE164 = normalizePhone(cardPhone || String(booking.customerPhone || ''));
+    const quotedCurrency = String((booking as any)?.currency || 'IDR').toUpperCase();
+    const allowUsd = String(process.env.XENDIT_CARDS_ALLOW_USD || '').toLowerCase() === 'true';
+    const FX_USD_IDR = Number(process.env.FX_USD_IDR || process.env.NEXT_PUBLIC_FX_USD_IDR || 16000);
+    const channelCurrency = (quotedCurrency === 'USD' && allowUsd) ? 'USD' : 'IDR';
+    const channelAmount = quotedCurrency === 'USD'
+      ? ((allowUsd ? amountQuoted : Math.max(1, Math.round(amountQuoted * FX_USD_IDR))))
+      : Math.max(1, Math.round(amountQuoted));
     const prPayload = {
       reference_id: `${booking.id}-${Math.floor(now / 1000)}`,
       type: 'PAY',
       country: 'ID',
-      currency: 'IDR',
-      request_amount: amount,
+      currency: channelCurrency,
+      request_amount: channelAmount,
       capture_method: 'AUTOMATIC',
       channel_code: 'CARDS',
       channel_properties: {

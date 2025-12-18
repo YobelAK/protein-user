@@ -146,6 +146,7 @@ export default function PaymentPage() {
       id: b.id,
       booking_code: b?.booking_code ?? b?.bookingCode ?? '',
       status: b?.status ?? '',
+      currency: b?.currency ?? undefined,
       customer_name: b?.customer_name ?? b?.customerName ?? '',
       customer_email: b?.customer_email ?? b?.customerEmail ?? '',
       customer_phone: b?.customer_phone ?? b?.customerPhone ?? '',
@@ -713,7 +714,7 @@ export default function PaymentPage() {
                               qrImageUrl={selectedPaymentMethod === 'qris' ? (qrMap[0] || {}).qrImageUrl : undefined}
                               vaNumber={selectedPaymentMethod === 'virtual-account' ? (vaMap[0] || {}).accountNumber : undefined}
                               vaBankCode={selectedPaymentMethod === 'virtual-account' ? (vaMap[0] || {}).bankCode : undefined}
-                              disabled={(!cardReady && selectedPaymentMethod === 'credit-card') || isProcessing}
+                              disabled={!selectedPaymentMethod || (!cardReady && selectedPaymentMethod === 'credit-card') || isProcessing}
                               onRefresh={(selectedPaymentMethod === 'qris') ? undefined : ((readyRefreshMap[0] && readyRefreshMap[0].method === selectedPaymentMethod) ? () => refreshPaidMulti(0) : undefined)}
                               payLoading={!!payLoadingMap[0]}
                               refreshLoading={!!refreshLoadingMap[0]}
@@ -744,7 +745,7 @@ export default function PaymentPage() {
                               qrImageUrl={selectedPaymentMethod === 'qris' ? (qrMap[1] || {}).qrImageUrl : undefined}
                               vaNumber={selectedPaymentMethod === 'virtual-account' ? (vaMap[1] || {}).accountNumber : undefined}
                               vaBankCode={selectedPaymentMethod === 'virtual-account' ? (vaMap[1] || {}).bankCode : undefined}
-                              disabled={(!cardReady && selectedPaymentMethod === 'credit-card') || isProcessing}
+                              disabled={!selectedPaymentMethod || (!cardReady && selectedPaymentMethod === 'credit-card') || isProcessing}
                               onRefresh={(selectedPaymentMethod === 'qris') ? undefined : ((readyRefreshMap[1] && readyRefreshMap[1].method === selectedPaymentMethod) ? () => refreshPaidMulti(1) : undefined)}
                               payLoading={!!payLoadingMap[1]}
                               refreshLoading={!!refreshLoadingMap[1]}
@@ -764,7 +765,7 @@ export default function PaymentPage() {
                     qrImageUrl={selectedPaymentMethod === 'qris' ? (qrSingle || {}).qrImageUrl : undefined}
                     vaNumber={selectedPaymentMethod === 'virtual-account' ? (vaSingle || {}).accountNumber : undefined}
                     vaBankCode={selectedPaymentMethod === 'virtual-account' ? (vaSingle || {}).bankCode : undefined}
-                    disabled={(!cardReady && selectedPaymentMethod === 'credit-card') || isProcessing}
+                    disabled={!selectedPaymentMethod || (!cardReady && selectedPaymentMethod === 'credit-card') || isProcessing}
                     onRefresh={(selectedPaymentMethod === 'qris') ? undefined : ((readyRefreshSingle && readyRefreshSingle.method === selectedPaymentMethod) ? refreshPaidSingle : undefined)}
                     payLoading={payLoadingSingle}
                     refreshLoading={refreshLoadingSingle}

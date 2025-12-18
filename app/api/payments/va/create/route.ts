@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     if (booking.status !== 'PENDING') {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
     }
-    const amount = Number(booking.totalAmount || 0);
+    const amountQuoted = Number(booking.totalAmount || 0);
     const now = Date.now();
     const expiresAt = new Date(now + 15 * 60 * 1000);
     const apiKey = process.env.XENDIT_API_KEY || '';
@@ -72,12 +72,17 @@ export async function POST(request: Request) {
     const bankCode = bankCodeInput || 'BCA';
     const name = String(booking.customerName || booking.customerEmail || 'Customer');
     const externalId = `${booking.id}-${Math.floor(now / 1000)}`;
+    const quotedCurrency = String((booking as any)?.currency || 'IDR').toUpperCase();
+    const FX_USD_IDR = Number(process.env.FX_USD_IDR || process.env.NEXT_PUBLIC_FX_USD_IDR || 16000);
+    const channelAmount = quotedCurrency === 'USD'
+      ? Math.max(1, Math.round(amountQuoted * FX_USD_IDR))
+      : Math.max(1, Math.round(amountQuoted));
     const payload = {
       external_id: externalId,
       bank_code: bankCode,
       name,
       is_closed: true,
-      expected_amount: amount,
+      expected_amount: channelAmount,
       is_single_use: true,
       expiration_date: expiresAt.toISOString(),
       metadata: { booking_code: booking.bookingCode || '', tenantId: booking.tenantId || '' },

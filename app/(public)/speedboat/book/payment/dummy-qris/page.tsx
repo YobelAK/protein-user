@@ -102,9 +102,13 @@ export default function DummyQrisPage() {
                   <Group justify="space-between" align="center">
                     <Text c="dimmed">Total</Text>
                     <Text fw={700} c="#2dbe8d">{(() => {
-                      const amt = booking?.totalAmount ?? booking?.total_amount;
-                      const n = Number(amt || 0);
-                      return `IDR ${n.toLocaleString('id-ID')}`;
+                      const items = Array.isArray(booking?.booking_items) ? booking.booking_items : [];
+                      const sub = items.reduce((sum: number, it: any) => sum + Number(it?.subtotal || 0), 0);
+                      const totalRaw = Number(booking?.totalAmount ?? booking?.total_amount ?? 0);
+                      const cur = String(booking?.currency || 'IDR').toUpperCase();
+                      const fee = cur === 'USD' ? 1 : 10000;
+                      const total = totalRaw > 0 ? totalRaw : (sub + fee);
+                      return `${cur} ${cur === 'USD' ? total.toLocaleString('en-US', { minimumFractionDigits: 2 }) : total.toLocaleString('id-ID')}`;
                     })()}</Text>
                   </Group>
 

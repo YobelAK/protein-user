@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     if (booking.status !== 'PENDING') {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
     }
-    const amount = Number(booking.totalAmount || 0);
+    const amountQuoted = Number(booking.totalAmount || 0);
     const now = Date.now();
     const expiresAt = new Date(now + 15 * 60 * 1000);
     const apiKey = process.env.XENDIT_API_KEY || '';
@@ -90,10 +90,16 @@ export async function POST(request: Request) {
     const callbackUrl = `${baseUrl.replace(/\/+$/, '')}/api/webhooks/xendit`;
     // Use unique external_id to avoid duplication
     const externalId = `${booking.id}-${Math.floor(now / 1000)}`;
+    const quotedCurrency = String((booking as any)?.currency || 'IDR').toUpperCase();
+    const FX_USD_IDR = Number(process.env.FX_USD_IDR || process.env.NEXT_PUBLIC_FX_USD_IDR || 16000);
+    const channelCurrency = 'IDR';
+    const channelAmount = quotedCurrency === 'USD'
+      ? Math.max(1, Math.round(amountQuoted * FX_USD_IDR))
+      : Math.max(1, Math.round(amountQuoted));
     const payload = {
       external_id: externalId,
-      amount,
-      currency: 'IDR',
+      amount: channelAmount,
+      currency: channelCurrency,
       type: 'DYNAMIC',
       expires_at: expiresAt.toISOString(),
       callback_url: callbackUrl,
