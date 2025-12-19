@@ -48,6 +48,15 @@ export default function AuthLoginPage() {
   })();
 
   useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = localStorage.getItem('remember_me') || '';
+        setRememberMe(raw === '1');
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
     let active = true;
     const ensureUserRow = async (session: any) => {
       try {
@@ -76,6 +85,35 @@ export default function AuthLoginPage() {
     })();
     const { data: sub } = (supabase as any).auth.onAuthStateChange(async (_event: any, s: any) => {
       if (s) {
+        try {
+          if (typeof window !== 'undefined') {
+            const rm = (localStorage.getItem('remember_me') || '') === '1';
+            const pattern = /^sb-.*-auth-token/;
+            if (!rm) {
+              const keys: string[] = [];
+              for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i) || '';
+                if (pattern.test(k)) keys.push(k);
+              }
+              keys.forEach((k) => {
+                const v = localStorage.getItem(k);
+                if (v) sessionStorage.setItem(k, v);
+                localStorage.removeItem(k);
+              });
+            } else {
+              const keys: string[] = [];
+              for (let i = 0; i < sessionStorage.length; i++) {
+                const k = sessionStorage.key(i) || '';
+                if (pattern.test(k)) keys.push(k);
+              }
+              keys.forEach((k) => {
+                const v = sessionStorage.getItem(k);
+                if (v) localStorage.setItem(k, v);
+                sessionStorage.removeItem(k);
+              });
+            }
+          }
+        } catch {}
         await ensureUserRow(s);
         router.replace(redirectParam || '/');
       }
@@ -143,6 +181,7 @@ export default function AuthLoginPage() {
       }
       const rto = encodeURIComponent(redirectParam || '/');
       const redirectTo = `${base}/login?auth_flow=login&redirectTo=${rto}`;
+      try { if (typeof window !== 'undefined') { localStorage.setItem('remember_me', rememberMe ? '1' : '0'); } } catch {}
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {

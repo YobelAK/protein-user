@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     'arrival_time',
     'capacity',
     'isActive',
-    'product:products!fastboat_schedules_productId_fkey(id,name,isActive,price_idr,price_usd,featured_image,category:categories!products_categoryId_fkey(id,name),tenant:tenants!products_tenantId_fkey(vendor_name,isActive))',
+    'product:products!fastboat_schedules_productId_fkey(id,name,isActive,price_idr,price_usd,featured_image,category:categories!products_categoryId_fkey(id,name),tenant:tenants!products_tenantId_fkey(vendor_name,isActive,image_url))',
     'departureRoute:routes!fastboat_schedules_departureRouteId_fkey(id,name)',
     'arrivalRoute:routes!fastboat_schedules_arrivalRouteId_fkey(id,name)',
     'boat:boats!fastboat_schedules_boatId_fkey(id,name,capacity,registration_number,image_urls)'

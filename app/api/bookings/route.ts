@@ -939,6 +939,8 @@ export async function GET(request: Request) {
   const reviewOf = urlObj.searchParams.get('reviewOf') || '';
   const topReviews = urlObj.searchParams.get('topReviews') || '';
   const topFastboatRoutes = urlObj.searchParams.get('topFastboatRoutes') || '';
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (reviewOf) {
     const prisma = db;
@@ -1141,6 +1143,23 @@ export async function GET(request: Request) {
         }
       }
     } catch {}
+    try {
+      if (supabaseUrl && serviceKey) {
+        const tid = String((b as any)?.tenantId || (b as any)?.tenant?.id || '');
+        if (tid) {
+          const tRes = await fetch(`${supabaseUrl}/rest/v1/tenants?select=id,image_url&id=eq.${encodeURIComponent(tid)}`, {
+            headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+            cache: 'no-store',
+          });
+          if (tRes.ok) {
+            const rows = await tRes.json();
+            const img = Array.isArray(rows) && rows.length > 0 ? (rows[0]?.image_url || null) : null;
+            const t = (b as any)?.tenant || {};
+            b = { ...(b as any), tenant: { ...t, image_url: img } } as any;
+          }
+        }
+      }
+    } catch {}
     return NextResponse.json({ booking: b });
   }
 
@@ -1197,6 +1216,23 @@ export async function GET(request: Request) {
           if (d.getTime() <= Date.now()) {
             await prisma.booking.update({ where: { id: b.id }, data: { status: 'COMPLETED', updatedAt: new Date() } });
             b = { ...b, status: 'COMPLETED' } as any;
+          }
+        }
+      }
+    } catch {}
+    try {
+      if (supabaseUrl && serviceKey) {
+        const tid = String((b as any)?.tenantId || (b as any)?.tenant?.id || '');
+        if (tid) {
+          const tRes = await fetch(`${supabaseUrl}/rest/v1/tenants?select=id,image_url&id=eq.${encodeURIComponent(tid)}`, {
+            headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+            cache: 'no-store',
+          });
+          if (tRes.ok) {
+            const rows = await tRes.json();
+            const img = Array.isArray(rows) && rows.length > 0 ? (rows[0]?.image_url || null) : null;
+            const t = (b as any)?.tenant || {};
+            b = { ...(b as any), tenant: { ...t, image_url: img } } as any;
           }
         }
       }
@@ -1311,6 +1347,29 @@ export async function GET(request: Request) {
     }
   } catch {}
 
+  let tenantImages: Record<string, string | null> = {};
+  try {
+    if (supabaseUrl && serviceKey) {
+      const ids = Array.from(new Set(bookings.map((b) => b.tenantId).filter(Boolean)));
+      if (ids.length > 0) {
+        const inList = ids.map((x) => encodeURIComponent(x)).join(',');
+        const tUrl = `${supabaseUrl}/rest/v1/tenants?select=id,image_url&id=in.(${inList})`;
+        const tRes = await fetch(tUrl, {
+          headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+          cache: 'no-store',
+        });
+        if (tRes.ok) {
+          const rows = await tRes.json();
+          for (const r of rows) {
+            const tid = String(r?.id || '');
+            const img = r?.image_url ? String(r.image_url) : null;
+            if (tid) tenantImages[tid] = img;
+          }
+        }
+      }
+    }
+  } catch {}
+
   function toCardStatus(status: string, paidAt?: Date | null) {
     if (status === 'PENDING') return 'Pending';
     if (status === 'PAID') return 'Booked';
@@ -1358,17 +1417,17 @@ export async function GET(request: Request) {
       }
       // Do not append trip direction suffix to title anymore
     } catch {}
-    const featured = firstItem?.product?.featuredImage || null;
+    const featured = (tenantImages[b.tenantId] ?? null);
     const location = sched && sched.departureRoute && sched.arrivalRoute
       ? `${sched.departureRoute.name} → ${sched.arrivalRoute.name}`
       : '';
-    const initials = title
+    const initials = (boatName ? String(boatName) : '')
       .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
       .map((w) => w[0])
       .join('')
-      .toUpperCase();
+      .toUpperCase() || 'BT';
     const status = toCardStatus(b.status, b.paidAt);
     const createdRaw = (b as any)?.createdAt ?? (b as any)?.created_at ?? (b as any)?.createdDate ?? (b as any)?.createdate ?? null;
     const createdDate = createdRaw ? new Date(createdRaw) : null;

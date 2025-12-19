@@ -67,11 +67,7 @@ function mapScheduleToResult(s: any, requestedPassengers?: number, departureDate
     id: s?.id,
     provider: s?.boat?.name ?? s?.product?.name ?? 'Unknown',
     vendorName: s?.product?.tenant?.vendor_name ?? s?.tenant?.vendor_name ?? undefined,
-    logo: (
-      (s?.product?.featured_image ? String(s.product.featured_image) : undefined)
-      ?? (Array.isArray(s?.boat?.image_urls) && s.boat.image_urls.length > 0 ? String(s.boat.image_urls[0]) : undefined)
-      ?? 'https://via.placeholder.com/60'
-    ),
+    logo: (s?.product?.tenant?.image_url ? String(s.product.tenant.image_url) : ''),
     departureTime: s?.departure_time ?? '',
     departureDate,
     arrivalTime: s?.arrival_time ?? '',

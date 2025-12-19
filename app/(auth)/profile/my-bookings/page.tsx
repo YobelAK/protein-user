@@ -160,9 +160,14 @@ export default function MyBookingsPage() {
                 }
                 const suffix = '';
               } catch {}
-              const featured = firstItem?.product?.featuredImage || null;
+              const featured = (b?.tenant?.imageUrl || (b as any)?.tenant?.image_url || null);
               const location = sched && sched.departureRoute && sched.arrivalRoute ? `${sched.departureRoute.name} → ${sched.arrivalRoute.name}` : '';
-              const initials = String(title).split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+              const initials = (() => {
+                const source = boatName || '';
+                const parts = String(source).split(/\s+/).filter(Boolean);
+                if (parts.length === 0) return 'BT';
+                return parts.slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+              })();
               const stRaw = String(b?.status || '').toUpperCase();
               const status: CardItem['status'] =
                 stRaw === 'PENDING' ? 'Pending' :
@@ -330,9 +335,14 @@ export default function MyBookingsPage() {
                 }
                 const suffix = '';
               } catch {}
-              const featured = firstItem?.product?.featuredImage || null;
+              const featured = (b?.tenant?.imageUrl || (b as any)?.tenant?.image_url || null);
               const location = sched && sched.departureRoute && sched.arrivalRoute ? `${sched.departureRoute.name} → ${sched.arrivalRoute.name}` : '';
-              const initials = String(title).split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+              const initials = (() => {
+                const source = boatName || '';
+                const parts = String(source).split(/\s+/).filter(Boolean);
+                if (parts.length === 0) return 'BT';
+                return parts.slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+              })();
               const stRaw = String(b?.status || '').toUpperCase();
               const status: CardItem['status'] =
                 stRaw === 'PENDING' ? 'Pending' :
@@ -589,6 +599,10 @@ export default function MyBookingsPage() {
                         const amt = invoice?.paidAmount ?? invoice?.totalAmount;
                         if (!amt) return '-';
                         const n = Number(amt);
+                        const cur = String(invoice?.currency || 'IDR').toUpperCase();
+                        if (cur === 'USD') {
+                          return `USD ${n.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+                        }
                         return `IDR ${n.toLocaleString('id-ID')}`;
                       })()}</Text>
                     </Box>

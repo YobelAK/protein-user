@@ -477,16 +477,12 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
                     }}
                     onClick={handleSearch}
                     loading={searching}
+                    loaderProps={{ color: 'white', size: 'sm' }}
                   >
                     Search
                   </Button>
                 </Grid.Col>
               </Grid>
-              {searching && (
-                <Box style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
-                  <Loader color="#284361" />
-                </Box>
-              )}
             </Tabs.Panel>
 
             <Tabs.Panel value="watersport">

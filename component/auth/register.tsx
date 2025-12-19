@@ -189,7 +189,12 @@ export default function AuthRegisterPage() {
                   <TextInput id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.currentTarget.value)} placeholder="Create a password" required rightSection={<ActionIcon aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((v) => !v)} variant="subtle" color="gray">{showPassword ? <IconEyeOff size={18} /> : <IconEye size={18} />}</ActionIcon>} styles={{ input: { padding: '12px 16px', border: '1px solid #d1d5db', borderRadius: 8, paddingRight: 48 } }} />
                 </div>
                 <Group justify="space-between" align="center">
-                  <Checkbox checked={agree} onChange={(e) => setAgree(e.currentTarget.checked)} label={<Text style={{ fontSize: 14, color: '#111827' }}>I agree to Terms & Privacy</Text>} styles={{ input: { borderColor: '#d1d5db' }, label: { cursor: 'pointer' } }} />
+                  <Group align="center" gap={8}>
+                    <Checkbox checked={agree} onChange={(e) => setAgree(e.currentTarget.checked)} styles={{ input: { borderColor: '#d1d5db' } }} />
+                    <Text style={{ fontSize: 14, color: '#111827' }}>
+                      I agree to <Anchor href="/terms" style={{ color: '#284361' }}>Terms</Anchor> & <Anchor href="/privacy" style={{ color: '#284361' }}>Privacy</Anchor>
+                    </Text>
+                  </Group>
                   <Anchor href={`/login?redirectTo=${encodeURIComponent(redirectParam || '/')}`} style={{ fontSize: 14, color: '#111827' }}>Already have an account?</Anchor>
                 </Group>
                 {error && <Text style={{ color: '#ef4444' }}>{error}</Text>}

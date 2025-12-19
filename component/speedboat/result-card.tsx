@@ -66,7 +66,12 @@ export function ResultCard({
   const priceUsd = prices.foreigner.adult;
   const href = `/speedboat/book?sid=${encodeURIComponent(String(id ?? ''))}&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&departureTime=${encodeURIComponent(departureTime)}&departureDate=${encodeURIComponent(String(departureDate ?? ''))}&provider=${encodeURIComponent(provider)}&priceIdr=${encodeURIComponent(String(priceIdr))}`;
   const canBook = (Number(available ?? 0) > 0) && ((requestedPassengers ?? 1) <= Number(available ?? 0));
-  const logoSrc = logo && String(logo).trim() ? logo : 'https://via.placeholder.com/60';
+  const hasLogo = !!(logo && String(logo).trim());
+  const initials = (() => {
+    const parts = String(provider).split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'SB';
+    return parts.slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+  })();
   const [openedPricing, { toggle: togglePricing }] = useDisclosure(false);
 
   const handleBookClick = async () => {
@@ -207,14 +212,16 @@ export function ResultCard({
         >
           <Group align="flex-start" gap="xl">
             <Avatar
-              src={logoSrc}
+              src={hasLogo ? logo : undefined}
               alt={provider}
               size={64}
               style={{
                 border: '2px solid #fd7e14',
                 flexShrink: 0
               }}
-            />
+            >
+              {hasLogo ? null : initials}
+            </Avatar>
             
             <Stack gap="md" style={{ flex: 1 }}>
               <Text fw={600} size="lg" c="dark">
@@ -367,11 +374,13 @@ export function ResultCard({
           <Stack gap="md">
             <Group gap="sm" align="center">
               <Avatar
-                src={logoSrc}
+                src={hasLogo ? logo : undefined}
                 alt={provider}
                 size={48}
                 style={{ border: '2px solid #fd7e14' }}
-              />
+              >
+                {hasLogo ? null : initials}
+              </Avatar>
               <Stack gap={2}>
                 <Text fw={600} size="md" c="dark">{provider}</Text>
                 {vendorName ? <Text size="xs" c="dimmed">{vendorName}</Text> : null}
