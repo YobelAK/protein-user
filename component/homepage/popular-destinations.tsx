@@ -42,7 +42,7 @@ export function PopularDestinations() {
         const list: DestinationCard[] = Array.isArray(data?.destinations) ? data.destinations.map((d: any) => ({
           id: String(d.id || ''),
           title: String(d.title || ''),
-          type: 'Speedboat',
+          type: 'Fastboat',
           priceIdr: Number(d.priceIdr || 0),
           image: d.image || null,
           depId: String(d.depId || ''),
@@ -71,7 +71,7 @@ export function PopularDestinations() {
   const visible = destinations.slice(offset, Math.min(offset + (isMobile ? 1 : 4), destinations.length));
 
   function formatIdr(n: number) {
-    try { return `Rp ${new Intl.NumberFormat('id-ID').format(Math.round(n))}` } catch { return `Rp ${n}` }
+    try { return `IDR ${new Intl.NumberFormat('id-ID').format(Math.round(n))}` } catch { return `IDR ${n}` }
   }
 
   return (
@@ -207,7 +207,7 @@ export function PopularDestinations() {
                           </Stack>
                           <Button
                             component={Link}
-                            href={`/speedboat?from=${encodeURIComponent(destination.depId)}&to=${encodeURIComponent(destination.arrId)}&departure=${encodeURIComponent(destination.date)}`}
+                            href={`/fastboat?from=${encodeURIComponent(destination.depId)}&to=${encodeURIComponent(destination.arrId)}&departure=${encodeURIComponent(destination.date)}`}
                             style={{
                               backgroundColor: '#284361',
                               ':hover': { backgroundColor: '#1e3149' }

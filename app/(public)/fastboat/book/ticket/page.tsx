@@ -197,7 +197,7 @@ export default function BookingConfirmationPage() {
         setFetching(true);
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          router.replace('/login?redirectTo=/speedboat/book/ticket');
+          router.replace('/login?redirectTo=/fastboat/book/ticket');
           return;
         }
         const search = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
@@ -222,7 +222,7 @@ export default function BookingConfirmationPage() {
         if (!(s === 'PAID' || s === 'COMPLETED')) {
           const qs = new URLSearchParams();
           qs.set('id', String(id));
-          router.replace(`/speedboat/book/payment?${qs.toString()}`);
+          router.replace(`/fastboat/book/payment?${qs.toString()}`);
           return;
         }
         setBooking(b);
@@ -240,7 +240,7 @@ export default function BookingConfirmationPage() {
       try {
         if (!bookingId) return;
         const origin = typeof window !== 'undefined' ? window.location.origin : '';
-        const url = `${origin}/speedboat/book/ticket?id=${encodeURIComponent(bookingId)}`;
+        const url = `${origin}/fastboat/book/ticket?id=${encodeURIComponent(bookingId)}`;
         const dataUrl = await QRCode.toDataURL(url, { width: 256, margin: 1 });
         setQrDataUrl(dataUrl);
       } catch {}

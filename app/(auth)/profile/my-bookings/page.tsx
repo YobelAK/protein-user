@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 
 type Status = 'All' | 'Booked' | 'Completed' | 'Cancelled' | 'Pending' | 'Expired'| 'Refunded';
 
-// const categories = ['All', 'Speedboat', 'Watersport', 'Tour', 'Beach Club'];
+// const categories = ['All', 'Fastboat', 'Watersport', 'Tour', 'Beach Club'];
 
 const statuses: Status[] = ['All','Pending', 'Booked', 'Completed', 'Cancelled', 'Expired', 'Refunded'];
 
@@ -817,7 +817,7 @@ export default function MyBookingsPage() {
                       style={{ backgroundColor: '#284361' }}
                       onClick={() => {
                         try { localStorage.setItem('booking_id', detail.id); } catch {}
-                        window.location.href = `/speedboat/book/payment?id=${encodeURIComponent(detail.id)}`;
+                        window.location.href = `/fastboat/book/payment?id=${encodeURIComponent(detail.id)}`;
                       }}
                     >
                       Pay Now
@@ -992,14 +992,14 @@ export default function MyBookingsPage() {
                 onPayNow={b.status === 'Pending' ? () => {
                   setPayLoadingMap((prev) => ({ ...prev, [b.id]: true }));
                   try { localStorage.setItem('booking_id', b.id); } catch {}
-                  window.location.href = `/speedboat/book/payment?id=${encodeURIComponent(b.id)}`;
+                  window.location.href = `/fastboat/book/payment?id=${encodeURIComponent(b.id)}`;
                 } : undefined}
                 onIssueRefund={(b.status === 'Booked') ? () => { setRefundBooking(b); setRefundOpen(true); } : undefined}
                 onViewDetails={(b.status === 'Expired' || b.status === 'Pending' || b.status === 'Refunded' || b.status === 'Cancelled') ? () => { setDetail(b); setDetailOpen(true); } : undefined}
                 onViewTicket={(b.status === 'Booked' || b.status === 'Completed') ? () => {
                   setTicketLoadingMap((prev) => ({ ...prev, [b.id]: true }));
                   try { localStorage.setItem('booking_id', b.id); } catch {}
-                  window.location.href = `/speedboat/book/ticket?id=${encodeURIComponent(b.id)}`;
+                  window.location.href = `/fastboat/book/ticket?id=${encodeURIComponent(b.id)}`;
                 } : undefined}
                 onViewInvoice={(b.status === 'Booked') ? async () => {
                   setInvoice(null);

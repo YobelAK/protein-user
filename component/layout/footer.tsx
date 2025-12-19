@@ -76,7 +76,7 @@ export function Footer() {
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="xl" mb="xl">
           {/* About */}
           <Stack gap="md">
-            <Title order={3} size="lg" c="white">About Name</Title>
+            <Title order={3} size="lg" c="white">Best Trip Guide</Title>
             <Text size="sm" c="gray.3" mb="md">
               Your trusted partner for island adventures in Bali and beyond. We
               provide safe, reliable, and unforgettable experiences.
@@ -138,7 +138,7 @@ export function Footer() {
             <Title order={3} size="lg" c="white">Our Products</Title>
             <Stack gap="xs">
               <Link 
-                href="/speedboat" 
+                href="/fastboat" 
                 style={{ 
                   textDecoration: 'none',
                   color: '#d1d5db',
@@ -147,7 +147,7 @@ export function Footer() {
                 }}
                 className="footer-link"
               >
-                Speedboat Services
+                Fastboat Services
               </Link>
               {/* <Link 
                 href="/tour" 
@@ -299,7 +299,7 @@ export function Footer() {
         
         <Box pt="xl" ta="center">
           <Text size="sm" c="gray.3">
-            &copy; 2024 Name. All rights reserved.
+            &copy; 2024 Best Trip Guide. All rights reserved.
           </Text>
         </Box>
       </Container>

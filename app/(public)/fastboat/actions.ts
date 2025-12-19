@@ -1,19 +1,19 @@
 'use server';
 
-import { speedboatService } from '@/services/speedboatService';
-import type { SchedulesActionResult, SerializedSpeedboatSchedule } from '@/lib/types/speedboat';
-import { SpeedboatSchedule } from '@/lib/generated/prisma';
+import { fastboatService } from '@/services/fastboatService';
+import type { SchedulesActionResult, SerializedfastboatSchedule } from '@/lib/types/fastboat';
+import { fastboatSchedule } from '@/lib/generated/prisma';
 
-function serializeSchedule(schedule: any): SerializedSpeedboatSchedule {
+function serializeSchedule(schedule: any): SerializedfastboatSchedule {
   return {
     id: schedule.id,
-    speedboat: {
-      id: schedule.speedboat.id,
-      name: schedule.speedboat.name,
+    fastboat: {
+      id: schedule.fastboat.id,
+      name: schedule.fastboat.name,
       operator: {
-        id: schedule.speedboat.operator.id,
-        name: schedule.speedboat.operator.name,
-        logo: schedule.speedboat.operator.logo,
+        id: schedule.fastboat.operator.id,
+        name: schedule.fastboat.operator.name,
+        logo: schedule.fastboat.operator.logo,
       },
     },
     route: {
@@ -34,7 +34,7 @@ function serializeSchedule(schedule: any): SerializedSpeedboatSchedule {
   };
 }
 
-export async function getSpeedboatSchedulesAction(params: {
+export async function getfastboatSchedulesAction(params: {
   page?: number;
   pageSize?: number;
   origin?: string;
@@ -42,7 +42,7 @@ export async function getSpeedboatSchedulesAction(params: {
   departureDate?: string;
 }): Promise<SchedulesActionResult> {
   try {
-    const result = await speedboatService.getAvailableSchedules({
+    const result = await fastboatService.getAvailableSchedules({
       page: params.page || 1,
       pageSize: params.pageSize || 10,
       origin: params.origin,
@@ -58,7 +58,7 @@ export async function getSpeedboatSchedulesAction(params: {
       totalRecords: result.totalRecords,
     };
   } catch (error: unknown) {
-    console.error('Error fetching speedboat schedules:', error);
+    console.error('Error fetching fastboat schedules:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to retrieve schedules.';
     return {
       success: false,
@@ -69,7 +69,7 @@ export async function getSpeedboatSchedulesAction(params: {
 
 export async function getRoutesAction() {
   try {
-    const routes = await speedboatService.getRoutes();
+    const routes = await fastboatService.getRoutes();
     return { success: true, routes };
   } catch (error: unknown) {
     console.error('Error fetching routes:', error);
@@ -80,7 +80,7 @@ export async function getRoutesAction() {
 
 export async function getOperatorsAction() {
   try {
-    const operators = await speedboatService.getOperators();
+    const operators = await fastboatService.getOperators();
     return { success: true, operators };
   } catch (error: unknown) {
     console.error('Error fetching operators:', error);

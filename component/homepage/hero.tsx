@@ -90,7 +90,7 @@ export function Hero() {
                 }
               }}
               component={Link}
-              href="/speedboat"
+              href="/fastboat"
             >
               Book Now
             </Button>

@@ -6,10 +6,10 @@ import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import { IconFilter } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
-import { SearchBar } from '@/components/speedboat/search-bar';
-import { FilterSidebar } from '@/components/speedboat/filter-sidebar';
-import { ResultsSection } from '@/components/speedboat/results-section';
-import type { ResultCardProps } from '@/components/speedboat/result-card';
+import { SearchBar } from '@/component/fastboat/search-bar';
+import { FilterSidebar } from '@/component/fastboat/filter-sidebar';
+import { ResultsSection } from '@/component/fastboat/results-section';
+import type { ResultCardProps } from '@/component/fastboat/result-card';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 
@@ -84,7 +84,7 @@ function mapScheduleToResult(s: any, requestedPassengers?: number, departureDate
   } as ResultCardProps;
 }
 
-export default function SpeedboatPageContent(props: { initialFrom?: string | null; initialTo?: string | null; initialDeparture?: string; initialProviders?: string[]; initialResults?: ResultCardProps[]; initialOriginOptions?: Array<{ value: string; label: string }>; initialDestinationOptions?: Array<{ value: string; label: string }> }) {
+export default function FastboatPageContent(props: { initialFrom?: string | null; initialTo?: string | null; initialDeparture?: string; initialProviders?: string[]; initialResults?: ResultCardProps[]; initialOriginOptions?: Array<{ value: string; label: string }>; initialDestinationOptions?: Array<{ value: string; label: string }> }) {
   const [sidebarOpened, { open, close }] = useDisclosure(false);
   const [results, setResults] = useState<ResultCardProps[]>(props.initialResults || []);
   const [schedules, setSchedules] = useState<any[]>([]);
@@ -137,7 +137,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
       })();
       const date = departure || todayStr;
       try {
-        const r = await fetch(`/api/speedboat/schedules?onlyRoutes=true`, { cache: 'no-store' });
+        const r = await fetch(`/api/fastboat/schedules?onlyRoutes=true`, { cache: 'no-store' });
         if (r.ok) {
           const j = await r.json();
           setRouteOrigins(Array.isArray(j?.origins) ? j.origins : []);
@@ -148,7 +148,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
       if (from) urlParams.set('from', from);
       if (to) urlParams.set('to', to);
       if (date) urlParams.set('date', date);
-      const res = await fetch(`/api/speedboat/schedules?${urlParams.toString()}`, { cache: 'no-store' });
+      const res = await fetch(`/api/fastboat/schedules?${urlParams.toString()}`, { cache: 'no-store' });
       if (!res.ok) { setResultsLoading(false); return; }
       const json = await res.json();
       const items = Array.isArray(json.schedules) ? json.schedules : [];
@@ -167,7 +167,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
       setResults((filtered.length ? filtered : items).map((s: any) => mapScheduleToResult(s, passengers, date)));
       try {
         const w = selectedWindows.join(',');
-        const url = `/api/speedboat/schedules?onlyProviders=true${from ? `&from=${encodeURIComponent(from)}` : ''}${to ? `&to=${encodeURIComponent(to)}` : ''}${w ? `&window=${encodeURIComponent(w)}` : ''}${date ? `&date=${encodeURIComponent(date)}` : ''}`;
+        const url = `/api/fastboat/schedules?onlyProviders=true${from ? `&from=${encodeURIComponent(from)}` : ''}${to ? `&to=${encodeURIComponent(to)}` : ''}${w ? `&window=${encodeURIComponent(w)}` : ''}${date ? `&date=${encodeURIComponent(date)}` : ''}`;
         const pr = await fetch(url, { cache: 'no-store' });
         if (pr.ok) {
           const pj = await pr.json();
@@ -245,7 +245,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
       if (ret) params.set('departure', ret);
       if (ret) params.set('return', ret);
       if (pax) params.set('passengers', String(pax));
-      window.location.href = `/speedboat?${params.toString()}`;
+      window.location.href = `/fastboat?${params.toString()}`;
     }
   };
 
@@ -264,7 +264,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
       if (outboundSel.departureDate) params.set('departure', String(outboundSel.departureDate));
       if (ret) params.set('return', ret);
       if (pax) params.set('passengers', String(pax));
-      window.location.href = `/speedboat?${params.toString()}`;
+      window.location.href = `/fastboat?${params.toString()}`;
     }
   };
 
@@ -309,7 +309,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
       q.set('child', String(c));
       q.set('infant', String(i));
     } catch {}
-    const target = `/speedboat/book?${q.toString()}`;
+    const target = `/fastboat/book?${q.toString()}`;
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -373,7 +373,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
       return `${y}-${m}-${da}`;
     })();
     const date = searchParams.get('departure') ?? todayStr;
-    const url = `/api/speedboat/schedules?onlyProviders=true${currentFrom ? `&from=${encodeURIComponent(currentFrom)}` : ''}${currentTo ? `&to=${encodeURIComponent(currentTo)}` : ''}${w ? `&window=${encodeURIComponent(w)}` : ''}${date ? `&date=${encodeURIComponent(date)}` : ''}`;
+    const url = `/api/fastboat/schedules?onlyProviders=true${currentFrom ? `&from=${encodeURIComponent(currentFrom)}` : ''}${currentTo ? `&to=${encodeURIComponent(currentTo)}` : ''}${w ? `&window=${encodeURIComponent(w)}` : ''}${date ? `&date=${encodeURIComponent(date)}` : ''}`;
     fetch(url, { cache: 'no-store' })
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d && Array.isArray(d.providers)) setProviders(d.providers); })
@@ -431,7 +431,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             if (departure) params.set('departure', departure);
             if (ret) params.set('return', ret);
             if (typeof passengers === 'number' && passengers > 0) params.set('passengers', String(passengers));
-            router.replace(`/speedboat?${params.toString()}`);
+            router.replace(`/fastboat?${params.toString()}`);
           }}
           onToChange={({ from, to, departure, return: ret, passengers }) => {
             setResultsLoading(true);
@@ -451,7 +451,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             if (departure) params.set('departure', departure);
             if (ret) params.set('return', ret);
             if (typeof passengers === 'number' && passengers > 0) params.set('passengers', String(passengers));
-            router.replace(`/speedboat?${params.toString()}`);
+            router.replace(`/fastboat?${params.toString()}`);
           }}
           onDepartureChange={({ from, to, departure, return: ret, passengers }) => {
             setResultsLoading(true);
@@ -471,7 +471,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             if (departure) params.set('departure', departure);
             if (ret) params.set('return', ret);
             if (typeof passengers === 'number' && passengers > 0) params.set('passengers', String(passengers));
-            router.replace(`/speedboat?${params.toString()}`);
+            router.replace(`/fastboat?${params.toString()}`);
           }}
           onReturnDateChange={({ from, to, departure, return: ret, passengers }) => {
             setResultsLoading(true);
@@ -483,7 +483,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             if (departure) params.set('departure', departure);
             if (ret) params.set('return', ret);
             if (typeof passengers === 'number' && passengers > 0) params.set('passengers', String(passengers));
-            router.replace(`/speedboat?${params.toString()}`);
+            router.replace(`/fastboat?${params.toString()}`);
           }}
           onPassengersChange={({ from, to, departure, return: ret, passengers }) => {
             setResultsLoading(true);
@@ -494,7 +494,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             if (departure) params.set('departure', departure);
             if (ret) params.set('return', ret);
             if (typeof passengers === 'number' && passengers > 0) params.set('passengers', String(passengers));
-            router.replace(`/speedboat?${params.toString()}`);
+            router.replace(`/fastboat?${params.toString()}`);
           }}
           onSearch={({ from, to, departure, return: ret, passengers }) => {
             setResultsLoading(true);
@@ -521,7 +521,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             const totalPassengers = Number(passengers ?? initialPassengers) || initialPassengers;
             setResults((filtered.length ? filtered : schedules).map((s) => mapScheduleToResult(s, totalPassengers, departure)));
             const w = selectedWindows.join(',');
-            const url = `/api/speedboat/schedules?onlyProviders=true${from ? `&from=${encodeURIComponent(from)}` : ''}${to ? `&to=${encodeURIComponent(to)}` : ''}${w ? `&window=${encodeURIComponent(w)}` : ''}${departure ? `&date=${encodeURIComponent(departure)}` : ''}`;
+            const url = `/api/fastboat/schedules?onlyProviders=true${from ? `&from=${encodeURIComponent(from)}` : ''}${to ? `&to=${encodeURIComponent(to)}` : ''}${w ? `&window=${encodeURIComponent(w)}` : ''}${departure ? `&date=${encodeURIComponent(departure)}` : ''}`;
             fetch(url, { cache: 'no-store' })
               .then((r) => r.ok ? r.json() : null)
               .then((d) => { if (d && Array.isArray(d.providers)) setProviders(d.providers); })
@@ -534,7 +534,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             if (departure) params.set('departure', departure);
             if (ret) params.set('return', ret);
             if (typeof passengers === 'number' && passengers > 0) params.set('passengers', String(passengers));
-            router.replace(`/speedboat?${params.toString()}`);
+            router.replace(`/fastboat?${params.toString()}`);
           }}
           onReturnToggle={(checked, { from, to, departure, return: ret, passengers }) => {
             setCurrentFrom(from || null);
@@ -549,7 +549,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
               if (departure) params.set('departure', departure);
               if (ret) params.set('return', ret);
               if (typeof passengers === 'number' && passengers > 0) params.set('passengers', String(passengers));
-              router.replace(`/speedboat?${params.toString()}`);
+              router.replace(`/fastboat?${params.toString()}`);
             } else {
               try { localStorage.removeItem('rt_outbound_selected'); } catch {}
               try { localStorage.removeItem('rt_inbound_selected'); } catch {}
@@ -564,7 +564,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
               if (to) params.set('to', to);
               if (departure) params.set('departure', departure);
               if (typeof passengers === 'number' && passengers > 0) params.set('passengers', String(passengers));
-              router.replace(`/speedboat?${params.toString()}`);
+              router.replace(`/fastboat?${params.toString()}`);
             }
           }}
         />
@@ -591,7 +591,7 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
             }
           }}
         >
-          Filter Speedboats
+          Filter Fastboats
         </Button>
       </Box>
       <Drawer
@@ -741,10 +741,10 @@ export default function SpeedboatPageContent(props: { initialFrom?: string | nul
           <Box style={{ flex: 1 }}>
             <Stack gap="md" mb="xl">
               <Title order={2} size="1.5rem" fw={700} c="#111827">
-                Available Speedboat Services
+                Available Fastboat Services
               </Title>
               <Text c="#6b7280">
-                Choose from our selection of reliable speedboat operators
+                Choose from our selection of reliable fastboat operators
               </Text>
             </Stack>
             <ResultsSection results={results} loading={resultsLoading} />

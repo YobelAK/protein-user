@@ -19,7 +19,7 @@ export function FilterSidebar({ providers, selectedProviders, onToggleProvider, 
   const content = (
     <Stack gap="xl">
       <Title order={3} size="lg" fw={600} c="#1a1a1a">
-        Filter Speedboats
+        Filter Fastboats
       </Title>
       
       <Stack gap="md">

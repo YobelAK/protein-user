@@ -70,7 +70,7 @@ export async function createBookingAction(data: z.infer<typeof createBookingSche
     
     const booking = await bookingService.createBooking(validatedData as any);
     
-    revalidatePath('/speedboat/book');
+    revalidatePath('/fastboat/book');
     
     return {
       success: true,
@@ -128,7 +128,7 @@ export async function updatePaymentStatusAction(
       paymentStatus === 'PAID' ? new Date() : undefined
     );
     
-    revalidatePath('/speedboat/book');
+    revalidatePath('/fastboat/book');
     
     return {
       success: true,

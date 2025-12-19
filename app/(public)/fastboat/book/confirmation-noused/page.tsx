@@ -48,7 +48,7 @@ export default function BookingConfirmationPage() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          router.replace('/login?redirectTo=/speedboat/book/confirmation');
+          router.replace('/login?redirectTo=/fastboat/book/confirmation');
           return;
         }
         const search = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');

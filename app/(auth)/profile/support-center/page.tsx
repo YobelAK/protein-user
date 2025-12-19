@@ -20,7 +20,7 @@ export default function Page() {
   const [error, setError] = useState<string | null>(null);
   const faqs = [
     { question: 'How do I cancel or reschedule my booking?', answer: 'You can cancel or reschedule your booking by going to My Bookings and selecting the booking you want to modify. Follow the prompts to make changes or cancel.' },
-    { question: 'What documents do I need for the speedboat?', answer: 'You will need a valid ID and your booking confirmation. Additional documents may be required depending on your destination.' },
+    { question: 'What documents do I need for the fastboat?', answer: 'You will need a valid ID and your booking confirmation. Additional documents may be required depending on your destination.' },
     { question: 'Is travel insurance included?', answer: 'Travel insurance is not automatically included but can be added during the booking process for an additional fee.' },
     { question: 'What is your refund policy?', answer: 'Refunds are available up to 48 hours before your scheduled departure. Cancellations within 48 hours may incur a fee.' },
   ];

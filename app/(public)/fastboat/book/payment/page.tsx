@@ -5,10 +5,10 @@ import { Container, Box, SimpleGrid, Stack, Title, Text, Grid, Group, Collapse, 
 import { IconChevronDown } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
-import { ProgressIndicator } from '@/components/speedboat/progress-indicator';
-import { BookingReview } from '@/components/speedboat/booking-review';
-import { PaymentSummary } from '@/components/speedboat/payment-summary';
-import { PaymentMethodSelector } from '@/components/speedboat/payment-method-selector';
+import { ProgressIndicator } from '@/component/fastboat/progress-indicator';
+import { BookingReview } from '@/component/fastboat/booking-review';
+import { PaymentSummary } from '@/component/fastboat/payment-summary';
+import { PaymentMethodSelector } from '@/component/fastboat/payment-method-selector';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import QRCode from 'qrcode';
@@ -66,7 +66,7 @@ export default function PaymentPage() {
           const s = String(json?.booking?.status || '').toUpperCase();
           if (s === 'PAID' || s === 'COMPLETED') {
             try { clearInterval(timers.current[idx]!); } catch {}
-            router.push(`/speedboat/book/ticket?id=${encodeURIComponent(id)}`);
+            router.push(`/fastboat/book/ticket?id=${encodeURIComponent(id)}`);
           }
         }
       } catch {}
@@ -91,7 +91,7 @@ export default function PaymentPage() {
             try { clearInterval(singleTimer.current!); } catch {}
             const qs = new URLSearchParams();
             qs.set('id', String(id));
-            router.push(`/speedboat/book/ticket?${qs.toString()}`);
+            router.push(`/fastboat/book/ticket?${qs.toString()}`);
           }
         }
       } catch {}
@@ -164,7 +164,7 @@ export default function PaymentPage() {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        router.replace('/login?redirectTo=/speedboat/book/payment');
+        router.replace('/login?redirectTo=/fastboat/book/payment');
         return;
       }
       try {
@@ -340,7 +340,7 @@ export default function PaymentPage() {
           const j = await createRes.json();
           try {
             const origin = typeof window !== 'undefined' ? window.location.origin : '';
-            const dummyUrl = `${origin}/speedboat/book/payment/dummy-qris?code=${encodeURIComponent(b?.booking_code || '')}&xid=${encodeURIComponent(j?.xenditId || '')}`;
+            const dummyUrl = `${origin}/fastboat/book/payment/dummy-qris?code=${encodeURIComponent(b?.booking_code || '')}&xid=${encodeURIComponent(j?.xenditId || '')}`;
             const dataUrl = await QRCode.toDataURL(dummyUrl, { width: 256, margin: 1 });
             setQrMap((prev) => ({ ...prev, [idx!]: { qrString: dummyUrl, qrImageUrl: dataUrl } }));
           } catch {
@@ -460,7 +460,7 @@ export default function PaymentPage() {
         const j = await createRes.json();
         try {
           const origin = typeof window !== 'undefined' ? window.location.origin : '';
-          const dummyUrl = `${origin}/speedboat/book/payment/dummy-qris?code=${encodeURIComponent(booking?.booking_code || '')}&xid=${encodeURIComponent(j?.xenditId || '')}`;
+          const dummyUrl = `${origin}/fastboat/book/payment/dummy-qris?code=${encodeURIComponent(booking?.booking_code || '')}&xid=${encodeURIComponent(j?.xenditId || '')}`;
           const dataUrl = await QRCode.toDataURL(dummyUrl, { width: 256, margin: 1 });
           setQrSingle({ qrString: dummyUrl, qrImageUrl: dataUrl });
         } catch {
@@ -516,7 +516,7 @@ export default function PaymentPage() {
         if (!res.ok) return;
         const qs = new URLSearchParams();
         qs.set('id', String(id));
-        router.push(`/speedboat/book/ticket?${qs.toString()}`);
+        router.push(`/fastboat/book/ticket?${qs.toString()}`);
         return;
       }
       const paidAmount = booking?.total_amount ?? booking?.totalAmount ?? 0;
@@ -528,7 +528,7 @@ export default function PaymentPage() {
       if (!res.ok) return;
       const qs = new URLSearchParams();
       qs.set('id', String(id));
-      router.push(`/speedboat/book/ticket?${qs.toString()}`);
+      router.push(`/fastboat/book/ticket?${qs.toString()}`);
     } catch {}
     finally {
       setIsProcessing(false);
@@ -600,7 +600,7 @@ export default function PaymentPage() {
       if (!res.ok) return;
       const qs = new URLSearchParams();
       qs.set('id', String(id));
-      router.push(`/speedboat/book/ticket?${qs.toString()}`);
+      router.push(`/fastboat/book/ticket?${qs.toString()}`);
     } catch {}
     finally {
       setRefreshLoadingSingle(false);

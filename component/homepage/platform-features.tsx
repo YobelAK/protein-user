@@ -25,9 +25,9 @@ import classes from './platform-features.module.css';
 const features = [
   {
     id: 1,
-    title: 'Speedboat Services',
+    title: 'Fastboat Services',
     description: 'Fast and comfortable journeys to and from surrounding islands.',
-    details: 'Our modern speedboat fleet offers safe and comfortable journeys to Nusa Penida, Gili Islands, and Lombok.',
+    details: 'Our modern Fastboat fleet offers safe and comfortable journeys to Nusa Penida, Gili Islands, and Lombok.',
     price: 'From Rp 100,000',
     icon: IconShip,
     image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&q=80'

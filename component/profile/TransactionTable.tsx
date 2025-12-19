@@ -20,7 +20,7 @@ export function TransactionTable({ fromDate, toDate }: TransactionTableProps) {
     {
       date: '12 Oct 2025',
       transactionId: 'TX-2275',
-      product: 'Speedboat Ticket',
+      product: 'Fastboat Ticket',
       amount: 'Rp 115.000',
       status: 'Paid',
     },

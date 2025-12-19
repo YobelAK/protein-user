@@ -1075,7 +1075,7 @@ export async function GET(request: Request) {
         depId: r.depId,
         arrId: r.arrId,
         title: `${r.depName} ➔ ${r.arrName}`,
-        type: 'Speedboat',
+        type: 'Fastboat',
         priceIdr: bestPrice === Number.MAX_SAFE_INTEGER ? 0 : bestPrice,
         image: routeImage || bestImage,
         popularity: r.passengers,

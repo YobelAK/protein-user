@@ -20,7 +20,7 @@ import { IconClock, IconMapPin, IconChevronLeft, IconChevronRight, IconArrowRigh
 const offers = [
   {
     id: 1,
-    title: '10% Off All Speedboat Bookings',
+    title: '10% Off All Fastboat Bookings',
     description: 'Book your Sanur-Nusa Penida trip today and save more for group travel. Perfect for families looking to explore together.',
     discount: '10% OFF',
     validUntil: 'Valid until: 30 Nov 2025',

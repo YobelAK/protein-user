@@ -66,7 +66,7 @@ export function BookingSummary({
   availableUnits,
   segments = [],
   addOns = [],
-  nextStep = '/speedboat/book/addons',
+  nextStep = '/fastboat/book/addons',
   nextStepLabel = 'Continue',
   showContinueButton = true,
   buttonText,

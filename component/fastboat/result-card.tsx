@@ -64,7 +64,7 @@ export function ResultCard({
 
   const priceIdr = prices.indonesian.adult;
   const priceUsd = prices.foreigner.adult;
-  const href = `/speedboat/book?sid=${encodeURIComponent(String(id ?? ''))}&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&departureTime=${encodeURIComponent(departureTime)}&departureDate=${encodeURIComponent(String(departureDate ?? ''))}&provider=${encodeURIComponent(provider)}&priceIdr=${encodeURIComponent(String(priceIdr))}`;
+  const href = `/fastboat/book?sid=${encodeURIComponent(String(id ?? ''))}&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&departureTime=${encodeURIComponent(departureTime)}&departureDate=${encodeURIComponent(String(departureDate ?? ''))}&provider=${encodeURIComponent(provider)}&priceIdr=${encodeURIComponent(String(priceIdr))}`;
   const canBook = (Number(available ?? 0) > 0) && ((requestedPassengers ?? 1) <= Number(available ?? 0));
   const hasLogo = !!(logo && String(logo).trim());
   const initials = (() => {
@@ -118,7 +118,7 @@ export function ResultCard({
           direct.set('adult', String(a));
           direct.set('child', String(c));
           direct.set('infant', String(i));
-          const target = `/speedboat/book?${direct.toString()}`;
+          const target = `/fastboat/book?${direct.toString()}`;
           const { data: { session } } = await supabase.auth.getSession();
           if (!session) {
             window.location.href = `/login?redirectTo=${encodeURIComponent(target)}`;
@@ -150,7 +150,7 @@ export function ResultCard({
           if (retDate) params.set('departure', retDate);
           if (retDate) params.set('return', retDate);
           if (pax) params.set('passengers', String(pax));
-          window.location.href = `/speedboat?${params.toString()}`;
+          window.location.href = `/fastboat?${params.toString()}`;
           return;
         }
 
@@ -190,7 +190,7 @@ export function ResultCard({
       if (ret) params.set('departure', ret);
       if (ret) params.set('return', ret);
       if (passengers) params.set('passengers', String(passengers));
-      window.location.href = `/speedboat?${params.toString()}`;
+      window.location.href = `/fastboat?${params.toString()}`;
     } catch {
       window.location.href = href;
     }

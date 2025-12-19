@@ -7,10 +7,10 @@ import { Container, Box, Group, Text, ActionIcon, SimpleGrid, Stack, Grid, Loade
 import { IconArrowLeft } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
-import { ProgressIndicator } from '@/components/speedboat/progress-indicator';
-import { ContactForm } from '@/components/speedboat/contact-form';
-import { PassengerForm } from '@/components/speedboat/passenger-form';
-import { BookingSummary } from '@/components/speedboat/booking-summary';
+import { ProgressIndicator } from '@/component/fastboat/progress-indicator';
+import { ContactForm } from '@/component/fastboat/contact-form';
+import { PassengerForm } from '@/component/fastboat/passenger-form';
+import { BookingSummary } from '@/component/fastboat/booking-summary';
 import { supabase } from '@/lib/supabase/client';
 
 function normalizePhoneE164(cc: string, num: string) {
@@ -123,7 +123,7 @@ function BookingPageContent() {
     const sid = searchParams.get('sid') ?? '';
     if (!sid) return;
     setLoadingInbound(true);
-    const url = departureDate ? `/api/speedboat/schedules?date=${encodeURIComponent(departureDate)}` : '/api/speedboat/schedules';
+    const url = departureDate ? `/api/fastboat/schedules?date=${encodeURIComponent(departureDate)}` : '/api/fastboat/schedules';
     fetch(url, { cache: 'no-store' })
       .then((r) => r.ok ? r.json() : null)
       .then((d) => {
@@ -174,7 +174,7 @@ function BookingPageContent() {
     const retDate = departureDate2;
     if (!sid2 || !retDate) return;
     setLoadingOutbound(true);
-    const url = retDate ? `/api/speedboat/schedules?date=${encodeURIComponent(retDate)}` : '/api/speedboat/schedules';
+    const url = retDate ? `/api/fastboat/schedules?date=${encodeURIComponent(retDate)}` : '/api/fastboat/schedules';
     fetch(url, { cache: 'no-store' })
       .then((r) => r.ok ? r.json() : null)
       .then((d) => {
@@ -270,10 +270,10 @@ function BookingPageContent() {
       <Header />
       <ProgressIndicator currentStep={1} />
       <Container size="xl" py="md">
-        <Link href="/speedboat" style={{ textDecoration: 'none' }}>
+        <Link href="/fastboat" style={{ textDecoration: 'none' }}>
           <Group gap="xs" style={{ cursor: 'pointer', color: '#6b7280', transition: 'color 0.2s ease' }}>
             <IconArrowLeft size={16} />
-            <Text size="sm" style={{ ':hover': { color: '#111827' } }}>Back to Speedboat</Text>
+            <Text size="sm" style={{ ':hover': { color: '#111827' } }}>Back to Fastboat</Text>
           </Group>
         </Link>
       </Container>
@@ -387,9 +387,9 @@ function BookingPageContent() {
                     try {
                       const url = new URL(typeof window !== 'undefined' ? window.location.href : '');
                       const relative = `${url.pathname}?${url.searchParams.toString()}`;
-                      return relative || '/speedboat/book';
+                      return relative || '/fastboat/book';
                     } catch {
-                      return '/speedboat/book';
+                      return '/fastboat/book';
                     }
                   })();
                   window.location.href = `/login?redirectTo=${encodeURIComponent(redirectTo)}`;
@@ -440,7 +440,7 @@ function BookingPageContent() {
                 const res = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payloadCombined) });
                 if (res.status === 401) {
                   setContinueLoading(false);
-                  window.location.href = '/login?redirectTo=/speedboat/book/payment';
+                  window.location.href = '/login?redirectTo=/fastboat/book/payment';
                   return;
                 }
                 if (res.ok) {
@@ -452,9 +452,9 @@ function BookingPageContent() {
                     const qs = new URLSearchParams();
                     qs.set('id', String(id));
                     if (session) {
-                      window.location.href = `/speedboat/book/payment?${qs.toString()}`;
+                      window.location.href = `/fastboat/book/payment?${qs.toString()}`;
                     } else {
-                      window.location.href = `/login?redirectTo=/speedboat/book/payment?${qs.toString()}`;
+                      window.location.href = `/login?redirectTo=/fastboat/book/payment?${qs.toString()}`;
                     }
                   } else {
                     setContinueLoading(false);
@@ -474,7 +474,7 @@ function BookingPageContent() {
   );
 }
 
-export default function SpeedboatBookingPage() {
+export default function FastboatBookingPage() {
   return (
     <Suspense>
       <BookingPageContent />

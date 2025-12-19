@@ -29,7 +29,7 @@ import { PassengerSelector, PassengerCounts } from '@/components/layout/passenge
 type Option = { value: string; label: string };
 
 export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: Option[]; toOptions?: Option[] }) {
-  const [activeTab, setActiveTab] = useState('speedboat');
+  const [activeTab, setActiveTab] = useState('Fastboat');
   const [returnTrip, setReturnTrip] = useState(false);
   const router = useRouter();
   const [isMobile, setIsMobile] = useState(false);
@@ -119,7 +119,7 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
     if (returnTrip && ret) params.set('return', ret);
     const totalPassengers = passengerCounts.adult + passengerCounts.child + passengerCounts.infant;
     if (totalPassengers > 0) params.set('passengers', String(totalPassengers));
-    router.push(`/speedboat?${params.toString()}`);
+    router.push(`/fastboat?${params.toString()}`);
   };
 
   const getPassengerText = () => {
@@ -153,7 +153,7 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
           >
             {!isMobile && (
               <Tabs.List>
-                <Tabs.Tab value="speedboat">Speedboat</Tabs.Tab>
+                <Tabs.Tab value="Fastboat">Fastboat</Tabs.Tab>
                 {/* <Tabs.Tab value="watersport">Watersport & Tour</Tabs.Tab>
                 <Tabs.Tab value="beachclub">Beach Club</Tabs.Tab> */}
               </Tabs.List>
@@ -193,7 +193,7 @@ export function SearchBar({ fromOptions = [], toOptions = [] }: { fromOptions?: 
             </button>
           </div> */}
 
-            <Tabs.Panel value="speedboat">
+            <Tabs.Panel value="Fastboat">
               <Grid mt="md">
                 <Grid.Col span={{ base: 12, md: 1.5 }}>
                   <Stack gap="xs">

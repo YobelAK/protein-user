@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 export const metadata = {
   title: "Best Trip Guide",
-  description: "User-facing app for booking fastboat/speedboat",
+  description: "User-facing app for booking fastboat",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
